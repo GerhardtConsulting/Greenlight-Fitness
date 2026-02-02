@@ -1,0 +1,13 @@
+# Greenlight Fitness - robots.txt
+# Blockiert die Indexierung der Development-Subdomain
+
+User-agent: *
+Disallow: /
+
+# Diese robots.txt ist für dev.greenlight-fitness.de
+# Für die Produktions-Domain (greenlight-fitness.de) sollte eine 
+# andere robots.txt verwendet werden, die Indexierung erlaubt.
+
+# Hinweis: robots.txt wirkt nur auf der Domain, auf der sie liegt.
+# Für Subdomains wie dev.greenlight-fitness.de muss diese Datei
+# auf der Subdomain selbst gehostet werden (wird durch Vercel automatisch gemacht).
