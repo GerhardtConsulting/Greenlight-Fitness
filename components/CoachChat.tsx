@@ -11,6 +11,7 @@ import {
 } from '../services/supabase';
 import { showLocalNotification, NotificationTypes } from '../services/notifications';
 import { Send, Mic, MicOff, X, ArrowDown, Check, CheckCheck, Loader2, Lock } from 'lucide-react';
+import VoiceMessagePlayer from './VoiceMessagePlayer';
 
 interface CoachChatProps {
   relationshipId: string;
@@ -347,20 +348,12 @@ const CoachChat: React.FC<CoachChatProps> = ({
                         : 'bg-[#1C1C1E] text-white border border-zinc-800 rounded-bl-md'
                     }`}
                   >
-                    {msg.message_type === 'voice' ? (
-                      <div className="flex items-center gap-3">
-                        <audio
-                          src={msg.voice_url}
-                          controls
-                          className="h-8 max-w-[200px]"
-                          style={{ filter: isMine ? 'invert(1)' : 'none' }}
-                        />
-                        {msg.voice_duration_seconds && (
-                          <span className={`text-xs ${isMine ? 'text-black/60' : 'text-zinc-500'}`}>
-                            {formatTime(msg.voice_duration_seconds)}
-                          </span>
-                        )}
-                      </div>
+                    {msg.message_type === 'voice' && msg.voice_url ? (
+                      <VoiceMessagePlayer
+                        src={msg.voice_url}
+                        duration={msg.voice_duration_seconds}
+                        isMine={isMine}
+                      />
                     ) : (
                       <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
                     )}
