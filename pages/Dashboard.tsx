@@ -12,6 +12,7 @@ import CalculatorsModal from '../components/CalculatorsModal';
 import AthleteProfileModal from '../components/AthleteProfileModal';
 import AthleteTrainingView from '../components/AthleteTrainingView';
 import AthleteDashboard from './AthleteDashboard';
+import CoachChat from '../components/CoachChat';
 import { calculateVolumeLoad } from '../utils/formulas';
 import { useLocation } from 'react-router-dom';
 
@@ -253,6 +254,7 @@ const Dashboard: React.FC = () => {
   const [coachingApprovals, setCoachingApprovals] = useState<any[]>([]);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [myAthletes, setMyAthletes] = useState<any[]>([]);
+  const [chatTarget, setChatTarget] = useState<{ relationshipId: string; athleteId: string; athleteName: string } | null>(null);
   const [allAthletes, setAllAthletes] = useState<any[]>([]);
   
   // UI State
@@ -801,6 +803,22 @@ const Dashboard: React.FC = () => {
             <CalculatorsModal isOpen={showTools} onClose={() => setShowTools(false)} />
             <AthleteProfileModal isOpen={!!selectedAthleteId} athleteId={selectedAthleteId} onClose={() => setSelectedAthleteId(null)} />
 
+            {/* Coach Chat Modal */}
+            {chatTarget && user && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in">
+                <div className="w-full max-w-lg">
+                  <CoachChat
+                    relationshipId={chatTarget.relationshipId}
+                    partnerId={chatTarget.athleteId}
+                    partnerName={chatTarget.athleteName}
+                    currentUserId={user.id}
+                    hasAccess={true}
+                    onClose={() => setChatTarget(null)}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Coach KPIs & Feeds */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-[#1C1C1E] p-5 rounded-[1.5rem] border border-zinc-800 relative overflow-hidden group">
@@ -1016,7 +1034,28 @@ const Dashboard: React.FC = () => {
                                                 </p>
                                             )}
                                         </div>
-                                        <ChevronRight size={16} className="text-zinc-600 group-hover:text-[#00FF00] transition-colors" />
+                                        <div className="flex items-center gap-1">
+                                            {relationshipInfo && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const name = athlete.first_name 
+                                                            ? `${athlete.first_name} ${athlete.last_name || ''}`.trim()
+                                                            : athlete.email?.split('@')[0];
+                                                        setChatTarget({
+                                                            relationshipId: relationshipInfo.id,
+                                                            athleteId: athlete.id,
+                                                            athleteName: name,
+                                                        });
+                                                    }}
+                                                    className="p-1.5 rounded-lg text-zinc-600 hover:text-[#00FF00] hover:bg-[#00FF00]/10 transition-colors"
+                                                    title="Chat öffnen"
+                                                >
+                                                    <MessageSquare size={14} />
+                                                </button>
+                                            )}
+                                            <ChevronRight size={16} className="text-zinc-600 group-hover:text-[#00FF00] transition-colors" />
+                                        </div>
                                     </div>
                                     
                                     {/* Quick Stats Preview */}

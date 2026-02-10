@@ -39,10 +39,9 @@ const Layout: React.FC = () => {
     { label: t('nav.products'), path: '/admin/products', icon: <Package size={20} /> },
   ];
 
-  // Add Users CRM and Athlete Assignment for Admins
+  // Add consolidated CRM for Admins (merged Users + Assignments)
   if (isAdmin) {
-      desktopNavItems.push({ label: t('nav.users'), path: '/admin/users', icon: <Users size={20} /> });
-      desktopNavItems.push({ label: 'Zuweisungen', path: '/admin/assignments', icon: <UserPlus size={20} /> });
+      desktopNavItems.push({ label: 'CRM', path: '/admin/assignments', icon: <Users size={20} /> });
   }
 
   const handleAthleteNav = (view: 'hub' | 'training') => {

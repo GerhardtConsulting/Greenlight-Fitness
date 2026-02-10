@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import Button from '../components/Button';
 import GoalWidget from '../components/GoalWidget';
+import MyCoach from '../components/MyCoach';
 
 interface WeeklyStats {
   weekStart: string;
@@ -334,6 +335,11 @@ const AthleteDashboard: React.FC = () => {
       {/* Goals Widget - Now at top! */}
       <div className="px-4 mt-4">
         <GoalWidget compact />
+      </div>
+
+      {/* My Coach Section */}
+      <div className="px-4 mt-4">
+        <MyCoach />
       </div>
       
       {/* Daily Wellness Card - Premium Style with Week Chart */}

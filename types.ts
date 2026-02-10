@@ -206,6 +206,7 @@ export interface Product {
   interval: SubscriptionInterval;
   thumbnailUrl?: string;
   isActive: boolean;
+  hasChatAccess?: boolean; // Whether this product includes chat with coach
 }
 
 // --- WORKOUT BUILDER TYPES ---

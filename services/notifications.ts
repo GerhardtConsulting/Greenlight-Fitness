@@ -187,6 +187,20 @@ export const NotificationTypes = {
     body: `${exerciseName}: ${value}`,
     tag: 'pr-achieved',
     data: { url: '/' }
+  }),
+
+  coachAssigned: (coachName: string) => ({
+    title: '👤 Coach zugewiesen!',
+    body: `${coachName} ist jetzt dein Coach. Schau dir sein Profil an!`,
+    tag: 'coach-assigned',
+    data: { url: '/' }
+  }),
+
+  newAthleteAssigned: (athleteName: string) => ({
+    title: '🆕 Neuer Athlet!',
+    body: `${athleteName} wurde dir zugewiesen. Mach dich vertraut!`,
+    tag: 'new-athlete',
+    data: { url: '/' }
   })
 };
 

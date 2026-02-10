@@ -1519,3 +1519,109 @@ export const processInvitation = async (invitationId: string, userId: string) =>
   // 3. Mark invitation as accepted
   return acceptInvitation(invitation.id, userId);
 };
+
+// ============ CHAT MESSAGES ============
+
+export const getChatMessages = async (relationshipId: string, limit = 50, before?: string) => {
+  let query = supabase
+    .from('chat_messages')
+    .select('*')
+    .eq('coaching_relationship_id', relationshipId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  
+  if (before) {
+    query = query.lt('created_at', before);
+  }
+  
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []).reverse();
+};
+
+export const sendChatMessage = async (message: {
+  coaching_relationship_id: string;
+  sender_id: string;
+  receiver_id: string;
+  message_type: 'text' | 'voice' | 'system';
+  content?: string;
+  voice_url?: string;
+  voice_duration_seconds?: number;
+}) => {
+  const { data, error } = await supabase
+    .from('chat_messages')
+    .insert(message)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const markMessagesAsRead = async (relationshipId: string, receiverId: string) => {
+  const { error } = await supabase
+    .from('chat_messages')
+    .update({ is_read: true, read_at: new Date().toISOString() })
+    .eq('coaching_relationship_id', relationshipId)
+    .eq('receiver_id', receiverId)
+    .eq('is_read', false);
+  if (error) throw error;
+};
+
+export const getUnreadMessageCount = async (userId: string) => {
+  const { count, error } = await supabase
+    .from('chat_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('receiver_id', userId)
+    .eq('is_read', false);
+  if (error) throw error;
+  return count || 0;
+};
+
+export const subscribeToChatMessages = (
+  relationshipId: string,
+  onMessage: (message: any) => void
+) => {
+  return supabase
+    .channel(`chat:${relationshipId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'chat_messages',
+        filter: `coaching_relationship_id=eq.${relationshipId}`,
+      },
+      (payload) => onMessage(payload.new)
+    )
+    .subscribe();
+};
+
+// Get coaching relationship for athlete (to find their coach)
+export const getAthleteCoachRelationship = async (athleteId: string) => {
+  const { data, error } = await supabase
+    .from('coaching_relationships')
+    .select(`
+      *,
+      coach:profiles!coaching_relationships_coach_id_fkey(id, email, first_name, last_name, display_name, height, weight),
+      product:products(id, title, has_chat_access, type)
+    `)
+    .eq('athlete_id', athleteId)
+    .eq('status', 'ACTIVE')
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+};
+
+// Check if athlete has chat access (via any active product with has_chat_access)
+export const checkChatAccess = async (athleteId: string) => {
+  const relationship = await getAthleteCoachRelationship(athleteId);
+  if (!relationship) return { hasAccess: false, relationship: null };
+  
+  // Check if the product linked to this relationship has chat access
+  const product = relationship.product;
+  const hasAccess = product?.has_chat_access === true || product?.type === 'COACHING_1ON1';
+  
+  return { hasAccess, relationship };
+};

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { getAthletesWithCoaching, getUsersByRole, assignAthleteToCoach, endCoachingRelationship } from '../services/supabase';
+import { getAthletesWithCoaching, getUsersByRole, getAllUsers, assignAthleteToCoach, endCoachingRelationship, updateProfile, getProducts, grantCoachingManually, createCoachingRelationship, createInvitation } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { UserRole } from '../types';
-import { Users, Search, UserPlus, X, Check, Link2, Unlink, ChevronDown, User, Dumbbell } from 'lucide-react';
+import { Users, Search, UserPlus, X, Check, Link2, Unlink, ChevronDown, User, Dumbbell, Shield, ShieldCheck, Gift, Mail, Bell, MessageCircle } from 'lucide-react';
+import { showLocalNotification } from '../services/notifications';
 
 interface AthleteWithCoaching {
   id: string;
@@ -89,6 +90,58 @@ const AdminAthleteAssignment: React.FC = () => {
         selectedCoachId,
         assignReason || 'Admin-Zuweisung'
       );
+      
+      // Send notifications
+      const coach = coaches.find(c => c.id === selectedCoachId);
+      const athleteName = getAthleteName(selectedAthlete);
+      const coachName = coach ? getCoachName(coach) : 'Coach';
+      
+      // Send email notifications (fire and forget)
+      try {
+        // Notify athlete
+        await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'coaching_approved',
+            to: selectedAthlete.email,
+            data: {
+              athleteName,
+              coachName,
+              productName: '1:1 Coaching',
+              planName: '',
+              dashboardLink: `${window.location.origin}/`,
+            },
+          }),
+        });
+        
+        // Notify coach
+        if (coach?.email) {
+          await fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'coaching_request_coach',
+              to: coach.email,
+              data: {
+                coachName,
+                athleteName,
+                athleteEmail: selectedAthlete.email,
+                requestReason: assignReason || 'Admin-Zuweisung',
+                dashboardLink: `${window.location.origin}/`,
+              },
+            }),
+          });
+        }
+      } catch (emailErr) {
+        console.warn('Email notification failed (non-critical):', emailErr);
+      }
+      
+      // Push notification
+      showLocalNotification('Coach zugewiesen', {
+        body: `${athleteName} wurde ${coachName} zugewiesen.`,
+        tag: 'coach-assigned',
+      });
       
       await fetchData();
       setShowAssignModal(false);
@@ -177,7 +230,7 @@ const AdminAthleteAssignment: React.FC = () => {
               Admin
             </span>
           </h1>
-          <p className="text-zinc-400 mt-2">Weise Athleten ihren Coaches zu für 1:1 Coaching</p>
+          <p className="text-zinc-400 mt-2">CRM & Athleten-Coach-Zuweisungen zentral verwalten</p>
         </div>
         
         <div className="flex items-center gap-3 w-full md:w-auto">

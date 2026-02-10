@@ -27,7 +27,7 @@ const AdminProducts: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  const [formData, setFormData] = useState<Partial<Product> & { selectedPlanIds?: string[] }>({
+  const [formData, setFormData] = useState<Partial<Product> & { selectedPlanIds?: string[]; hasChatAccess?: boolean }>({
     title: '',
     description: '',
     longDescription: '',
@@ -40,7 +40,8 @@ const AdminProducts: React.FC = () => {
     type: 'PLAN',
     features: [],
     isActive: true,
-    selectedPlanIds: []
+    selectedPlanIds: [],
+    hasChatAccess: false,
   });
 
   const [currentFeature, setCurrentFeature] = useState('');
@@ -277,6 +278,7 @@ const AdminProducts: React.FC = () => {
         interval: formData.interval || 'month',
         thumbnail_url: formData.thumbnailUrl || '',
         is_active: formData.isActive ?? true,
+        has_chat_access: formData.hasChatAccess ?? false,
         stripe_product_id: stripeData?.stripe_product_id || null,
         stripe_price_id: stripeData?.stripe_price_id || null,
       };
@@ -804,6 +806,42 @@ const AdminProducts: React.FC = () => {
               <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform ${formData.isActive ? 'left-7' : 'left-1'}`} />
             </button>
           </div>
+        </section>
+
+        {/* SECTION 7: Chat-Zugang */}
+        <section className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${formData.hasChatAccess ? 'bg-purple-500/10' : 'bg-zinc-800'}`}>
+                {formData.hasChatAccess 
+                  ? <Sparkles size={20} className="text-purple-400" /> 
+                  : <Info size={20} className="text-zinc-500" />}
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Chat-Zugang</h2>
+                <p className="text-xs text-zinc-500">
+                  {formData.hasChatAccess 
+                    ? 'Käufer können direkt mit dem Coach chatten' 
+                    : 'Kein Chat-Zugang für Käufer dieses Produkts'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFormData({...formData, hasChatAccess: !formData.hasChatAccess})}
+              className={`relative w-14 h-8 rounded-full transition-colors ${formData.hasChatAccess ? 'bg-purple-500' : 'bg-zinc-700'}`}
+            >
+              <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform ${formData.hasChatAccess ? 'left-7' : 'left-1'}`} />
+            </button>
+          </div>
+          {formData.type === 'COACHING_1ON1' && !formData.hasChatAccess && (
+            <div className="mt-4 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+              <p className="text-amber-400 text-xs flex items-center gap-2">
+                <AlertTriangle size={14} />
+                Bei 1:1 Coaching wird empfohlen, den Chat-Zugang zu aktivieren.
+              </p>
+            </div>
+          )}
         </section>
 
         {/* Actions */}
