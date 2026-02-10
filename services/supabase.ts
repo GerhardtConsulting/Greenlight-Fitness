@@ -1203,8 +1203,8 @@ export const getAllUsersForCRM = async () => {
         id, athlete_id, product_id, status, started_at,
         athlete:profiles!coaching_relationships_athlete_id_fkey(id, email, first_name, last_name, role)
       ),
-      purchases(id, product_id, amount, currency, status, stripe_session_id, created_at),
-      assigned_plans(id, original_plan_id, plan_name, schedule_status, assigned_at)
+      purchases!purchases_user_id_fkey(id, product_id, amount, currency, status, stripe_session_id, created_at),
+      assigned_plans!assigned_plans_athlete_id_fkey(id, original_plan_id, plan_name, schedule_status, assigned_at)
     `)
     .order('created_at', { ascending: false });
   if (error) throw error;
