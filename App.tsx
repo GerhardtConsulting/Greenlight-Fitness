@@ -22,6 +22,7 @@ import Chat from './pages/Chat';
 import WorkoutHistory from './pages/WorkoutHistory';
 import Legal from './pages/Legal';
 import PublicBooking from './pages/PublicBooking';
+import ApiDocs from './pages/ApiDocs';
 import Layout from './components/Layout';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import CoachOnboarding from './components/CoachOnboarding';
@@ -84,6 +85,9 @@ const App: React.FC = () => {
             
             {/* Public Booking Page (no auth required) */}
             <Route path="/book/:slug" element={<PublicBooking />} />
+            
+            {/* API Documentation (no auth, noindex) */}
+            <Route path="/api-docs" element={<ApiDocs />} />
 
             {/* Legal Pages (Public) */}
             <Route path="/legal/imprint" element={<Legal />} />
