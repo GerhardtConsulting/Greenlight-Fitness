@@ -74,6 +74,31 @@ export const getExercises = async () => {
   return data || [];
 };
 
+export const getExerciseById = async (id: string) => {
+  const { data, error } = await supabase
+    .from('exercises')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    id: data.id,
+    authorId: data.author_id,
+    name: data.name,
+    description: data.description,
+    category: data.category,
+    difficulty: data.difficulty,
+    trackingType: data.tracking_type,
+    videoUrl: data.video_url,
+    thumbnailUrl: data.thumbnail_url,
+    sequenceUrl: data.sequence_url,
+    isArchived: data.is_archived,
+    defaultSets: data.default_sets,
+    defaultVisibleMetrics: data.default_visible_metrics,
+  } as any;
+};
+
 export const createExercise = async (exercise: any) => {
   const { data, error } = await supabase
     .from('exercises')

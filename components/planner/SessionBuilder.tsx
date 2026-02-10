@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { doc, updateDoc, getDoc } from 'firebase/firestore/lite';
-import { db } from '../../services/firebase';
+import { getExerciseById, updateSession } from '../../services/supabase';
 import { TrainingSession, WorkoutBlock, WorkoutExercise, WorkoutSet, BlockType, Exercise } from '../../types';
 import Button from '../Button';
 import ExerciseSelector from './ExerciseSelector';
@@ -201,10 +200,9 @@ const SessionBuilder: React.FC<SessionBuilderProps> = ({ planId, weekId, session
   // --- EDIT GLOBAL EXERCISE ---
   const openExerciseEditor = async (exerciseId: string) => {
     try {
-        const docRef = doc(db, 'exercises', exerciseId);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-            setExerciseToEdit({ id: docSnap.id, ...docSnap.data() } as Exercise);
+        const exercise = await getExerciseById(exerciseId);
+        if (exercise) {
+            setExerciseToEdit(exercise);
             setIsExerciseEditorOpen(true);
         } else {
             alert("Exercise not found in library.");
@@ -339,11 +337,10 @@ const SessionBuilder: React.FC<SessionBuilderProps> = ({ planId, weekId, session
       // Ensure we are saving a clean object
       const cleanedWorkoutData = JSON.parse(JSON.stringify(workoutData));
 
-      const sessionRef = doc(db, 'plans', planId, 'weeks', weekId, 'sessions', session.id);
-      await updateDoc(sessionRef, {
+      await updateSession(session.id, {
         title,
         description,
-        workoutData: cleanedWorkoutData
+        workout_data: cleanedWorkoutData
       });
       onSaveComplete();
       onClose();

@@ -3,37 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase, getAssignedPlans, getExercises } from '../services/supabase';
 import { ChevronLeft, ChevronRight, Plus, Check, Play, Dumbbell, X, ChevronDown, ChevronUp, Search, Trash2, Trophy, Repeat, Link, Layers, Timer, Square, Pause, ClipboardList, Pencil, CheckCircle, Bookmark, Lock, Zap, TrendingUp } from 'lucide-react';
 import Button from './Button';
-import { Exercise, BlockType } from '../types';
-
-interface WorkoutSet {
-  id: string;
-  reps?: string;
-  weight?: string;
-  rpe?: string;
-  time?: string;
-  rest?: string;
-  isCompleted?: boolean;
-  completedReps?: string;
-  completedWeight?: string;
-}
-
-interface WorkoutExercise {
-  id: string;
-  exerciseId?: string;
-  name: string;
-  sets: WorkoutSet[];
-  lastValues?: { reps: string; weight: string }[];
-  personalBest?: { weight: string; reps: string };
-}
-
-interface WorkoutBlock {
-  id: string;
-  name: string;
-  type: BlockType;
-  rounds?: string;
-  restBetweenRounds?: string;
-  exercises: WorkoutExercise[];
-}
+import { Exercise, BlockType, WorkoutSet, WorkoutExercise, WorkoutBlock } from '../types';
 
 interface DayWorkout {
   id: string;
@@ -282,8 +252,11 @@ const AthleteTrainingView: React.FC = () => {
         description: e.description,
         category: e.category,
         difficulty: e.difficulty,
+        trackingType: e.tracking_type,
         videoUrl: e.video_url,
         thumbnailUrl: e.thumbnail_url,
+        defaultSets: e.default_sets,
+        defaultVisibleMetrics: e.default_visible_metrics,
       } as Exercise)));
     } catch (error) {
       console.error('Error loading exercises:', error);
@@ -312,16 +285,22 @@ const AthleteTrainingView: React.FC = () => {
 
       let updatedWorkoutData = [...(session.workoutData || [])];
       
-      // Create new exercise with 3 sets @ 10 reps (standard)
+      // Use exercise defaults if available, otherwise fallback to 3 sets
+      const defaultSets: WorkoutSet[] = (exercise.defaultSets && exercise.defaultSets.length > 0)
+        ? exercise.defaultSets.map(s => ({ ...s, id: `set-${Date.now()}-${Math.random().toString(36).substr(2,5)}` }))
+        : Array.from({ length: 3 }, (_, i) => ({
+            id: `set-${Date.now()}-${i}`,
+            type: 'Normal' as const,
+            reps: '10',
+            weight: '',
+          }));
+
       const newExercise: WorkoutExercise = {
         id: `ex-${Date.now()}`,
         exerciseId: exercise.id,
         name: exercise.name,
-        sets: Array.from({ length: 3 }, (_, i) => ({
-          id: `set-${Date.now()}-${i}`,
-          reps: '10',
-          weight: '',
-        }))
+        visibleMetrics: (exercise.defaultVisibleMetrics as any) || ['reps', 'weight'],
+        sets: defaultSets,
       };
 
       // Determine which block to add to
@@ -615,8 +594,11 @@ const AthleteTrainingView: React.FC = () => {
                     ...ex,
                     sets: [...ex.sets, {
                       id: `set-${Date.now()}`,
+                      type: (lastSet?.type || 'Normal') as any,
                       reps: lastSet?.reps || '10',
                       weight: lastSet?.weight || '',
+                      rpe: lastSet?.rpe || '',
+                      rest: lastSet?.rest || '',
                     }]
                   };
                 })
@@ -631,15 +613,19 @@ const AthleteTrainingView: React.FC = () => {
   
   // Add exercise to block (during active block)
   const addExerciseToBlock = (workoutId: string, blockId: string, exercise: Exercise) => {
+    const defaultSets: WorkoutSet[] = (exercise.defaultSets && exercise.defaultSets.length > 0)
+      ? exercise.defaultSets.map(s => ({ ...s, id: `set-${Date.now()}-${Math.random().toString(36).substr(2,5)}` }))
+      : [
+          { id: `set-${Date.now()}-1`, type: 'Normal' as const, reps: '10', weight: '' },
+          { id: `set-${Date.now()}-2`, type: 'Normal' as const, reps: '10', weight: '' },
+          { id: `set-${Date.now()}-3`, type: 'Normal' as const, reps: '10', weight: '' },
+        ];
     const newExercise: WorkoutExercise = {
       id: `ex-${Date.now()}`,
       exerciseId: exercise.id,
       name: exercise.name,
-      sets: [
-        { id: `set-${Date.now()}-1`, reps: '10', weight: '' },
-        { id: `set-${Date.now()}-2`, reps: '10', weight: '' },
-        { id: `set-${Date.now()}-3`, reps: '10', weight: '' },
-      ]
+      visibleMetrics: (exercise.defaultVisibleMetrics as any) || ['reps', 'weight'],
+      sets: defaultSets,
     };
     
     setWorkouts(prev => {
@@ -671,7 +657,7 @@ const AthleteTrainingView: React.FC = () => {
   };
 
   // Update set value (works directly on workouts state)
-  const updateSetValue = (workoutId: string, blockId: string, exerciseId: string, setId: string, field: 'completedReps' | 'completedWeight', value: string) => {
+  const updateSetValue = (workoutId: string, blockId: string, exerciseId: string, setId: string, field: keyof WorkoutSet, value: string) => {
     setWorkouts(prev => {
       const updated = { ...prev };
       if (updated[selectedDateKey]) {
@@ -1256,109 +1242,189 @@ const AthleteTrainingView: React.FC = () => {
                                   )}
                                 </div>
                                 
-                                {/* Sets - Simplified layout */}
+                                {/* Sets - Metrics-aware layout */}
                                 <div className="space-y-2">
-                                  {(exercise.sets || []).map((set, setIdx) => {
-                                    const lastSet = lastSets[setIdx];
-                                    const hasTarget = (set.reps || set.weight) && !workout.isCustom;
-                                    
-                                    return (
-                                      <React.Fragment key={set.id}>
-                                      <div 
-                                        className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
-                                          set.isCompleted ? 'bg-[#00FF00]/10 ring-1 ring-[#00FF00]/30' : 'bg-zinc-800'
-                                        }`}
-                                      >
-                                        {/* Set Number */}
-                                        <span className="text-xs font-bold text-zinc-500 w-6">{setIdx + 1}</span>
-                                        
-                                        {/* Target (only if coach prescribed and has values) */}
-                                        {hasTarget && (
-                                          <div className="flex items-center gap-1 text-sm text-zinc-500 bg-zinc-700/50 px-2 py-1 rounded">
-                                            <span>{set.reps || '-'}</span>
-                                            <span className="text-zinc-600">×</span>
-                                            <span>{set.weight || '-'}</span>
-                                            <span className="text-[10px]">kg</span>
+                                  {(() => {
+                                    const metrics = exercise.visibleMetrics || ['reps', 'weight'];
+                                    const hasReps = metrics.includes('reps');
+                                    const hasWeight = metrics.includes('weight');
+                                    const hasRpe = metrics.includes('rpe');
+                                    const hasTime = metrics.includes('time');
+                                    const hasDistance = metrics.includes('distance');
+                                    const hasTempo = metrics.includes('tempo');
+                                    const hasPct1rm = metrics.includes('pct_1rm');
+
+                                    const METRIC_LABELS: Record<string, string> = {
+                                      reps: 'Wdh', weight: 'kg', rpe: 'RPE', time: 'Zeit',
+                                      distance: 'm', tempo: 'Tempo', pct_1rm: '%1RM',
+                                    };
+
+                                    return (exercise.sets || []).map((set, setIdx) => {
+                                      const lastSet = lastSets[setIdx];
+                                      const hasTarget = !workout.isCustom && (set.reps || set.weight || set.time || set.distance);
+
+                                      return (
+                                        <React.Fragment key={set.id}>
+                                        <div 
+                                          className={`flex items-center gap-2 p-2 rounded-lg transition-all ${
+                                            set.isCompleted ? 'bg-[#00FF00]/10 ring-1 ring-[#00FF00]/30' : 'bg-zinc-800'
+                                          }`}
+                                        >
+                                          {/* Set Number + Type badge */}
+                                          <div className="flex flex-col items-center w-6 shrink-0">
+                                            <span className="text-xs font-bold text-zinc-500">{setIdx + 1}</span>
+                                            {set.type && set.type !== 'Normal' && (
+                                              <span className={`text-[8px] font-bold leading-none mt-0.5 ${
+                                                set.type === 'Warmup' ? 'text-yellow-500' : set.type === 'Dropset' ? 'text-purple-400' : 'text-blue-400'
+                                              }`}>{set.type === 'Warmup' ? 'W' : set.type === 'Dropset' ? 'D' : 'A'}</span>
+                                            )}
                                           </div>
-                                        )}
-                                        
-                                        {/* Input Fields - Always show during active session */}
-                                        {isBlockActive ? (
-                                          <div className="flex items-center gap-1 flex-1">
-                                            <input
-                                              type="text"
-                                              inputMode="numeric"
-                                              placeholder={set.reps || lastSet?.reps || '10'}
-                                              value={set.completedReps || ''}
-                                              onChange={(e) => updateSetValue(workout.id, block.id, exercise.id, set.id, 'completedReps', e.target.value)}
-                                              className="w-14 bg-zinc-700 border border-zinc-600 rounded px-2 py-1.5 text-white text-center text-sm focus:border-[#00FF00] outline-none"
-                                            />
-                                            <span className="text-zinc-500 text-xs">Wdh</span>
-                                            <span className="text-zinc-600 mx-1">×</span>
-                                            <input
-                                              type="text"
-                                              inputMode="decimal"
-                                              placeholder={set.weight || lastSet?.weight || '0'}
-                                              value={set.completedWeight || ''}
-                                              onChange={(e) => updateSetValue(workout.id, block.id, exercise.id, set.id, 'completedWeight', e.target.value)}
-                                              className="w-16 bg-zinc-700 border border-zinc-600 rounded px-2 py-1.5 text-white text-center text-sm focus:border-[#00FF00] outline-none"
-                                            />
-                                            <span className="text-zinc-500 text-xs">kg</span>
-                                          </div>
-                                        ) : (
-                                          /* Preview mode - show simple set info */
-                                          !hasTarget && (
-                                            <div className="flex items-center gap-1 text-sm text-zinc-400">
-                                              <span>{set.reps || '10'}</span>
-                                              <span className="text-zinc-600">×</span>
-                                              <span>{set.weight || '-'}</span>
-                                              <span className="text-[10px]">kg</span>
+                                          
+                                          {/* Target values (coach prescribed) */}
+                                          {hasTarget && (
+                                            <div className="flex items-center gap-1 text-[11px] text-zinc-500 bg-zinc-700/50 px-2 py-1 rounded shrink-0">
+                                              {hasReps && set.reps && <span>{set.reps}</span>}
+                                              {hasReps && hasWeight && set.reps && set.weight && <span className="text-zinc-600">×</span>}
+                                              {hasWeight && set.weight && <><span>{set.weight}</span><span className="text-[9px]">kg</span></>}
+                                              {hasTime && set.time && <span>{set.time}s</span>}
+                                              {hasDistance && set.distance && <span>{set.distance}m</span>}
+                                              {hasPct1rm && set.pct_1rm && <span>{set.pct_1rm}%</span>}
+                                              {hasTempo && set.tempo && <span className="font-mono">{set.tempo}</span>}
+                                              {hasRpe && set.rpe && <span className="text-orange-400">@{set.rpe}</span>}
                                             </div>
-                                          )
-                                        )}
-                                        
-                                        {/* RPE badge */}
-                                        {set.rpe && (
-                                          <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded">
-                                            RPE {set.rpe}
-                                          </span>
-                                        )}
-                                        
-                                        {/* Complete Button */}
-                                        {isBlockActive && (
-                                          <button 
-                                            onClick={() => {
-                                              toggleSetComplete(workout.id, block.id, exercise.id, set.id);
-                                              // Auto-start rest timer on set completion
-                                              if (!set.isCompleted) startRestTimer(set.id);
-                                            }}
-                                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0 ${
-                                              set.isCompleted 
-                                                ? 'bg-[#00FF00] text-black' 
-                                                : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
-                                            }`}
-                                          >
-                                            <Check size={16} />
-                                          </button>
-                                        )}
-                                      </div>
-                                      
-                                      {/* Inline Rest Timer - shows after completed set */}
-                                      {restTimer.active && restTimer.afterSetId === set.id && (
-                                        <div className="flex items-center justify-center gap-3 py-2 bg-orange-500/10 rounded-lg animate-pulse">
-                                          <span className="text-orange-400 text-sm flex items-center gap-1"><Timer size={14} /> Pause</span>
-                                          <span className="text-white font-mono text-xl font-bold">{formatTime(restTimer.seconds)}</span>
-                                          <button 
-                                            onClick={stopRestTimer}
-                                            className="text-orange-400 hover:text-white text-xs"
-                                          >
-                                            Überspringen
-                                          </button>
+                                          )}
+                                          
+                                          {/* Input Fields - during active session */}
+                                          {isBlockActive ? (
+                                            <div className="flex items-center gap-1 flex-1 flex-wrap">
+                                              {hasReps && (
+                                                <>
+                                                  <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    placeholder={set.reps || lastSet?.reps || '10'}
+                                                    value={set.completedReps || ''}
+                                                    onChange={(e) => updateSetValue(workout.id, block.id, exercise.id, set.id, 'completedReps', e.target.value)}
+                                                    className="w-14 bg-zinc-700 border border-zinc-600 rounded px-2 py-1.5 text-white text-center text-sm focus:border-[#00FF00] outline-none"
+                                                  />
+                                                  <span className="text-zinc-500 text-[10px]">Wdh</span>
+                                                </>
+                                              )}
+                                              {hasReps && hasWeight && <span className="text-zinc-600 mx-0.5">×</span>}
+                                              {hasWeight && (
+                                                <>
+                                                  <input
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    placeholder={set.weight || lastSet?.weight || '0'}
+                                                    value={set.completedWeight || ''}
+                                                    onChange={(e) => updateSetValue(workout.id, block.id, exercise.id, set.id, 'completedWeight', e.target.value)}
+                                                    className="w-16 bg-zinc-700 border border-zinc-600 rounded px-2 py-1.5 text-white text-center text-sm focus:border-[#00FF00] outline-none"
+                                                  />
+                                                  <span className="text-zinc-500 text-[10px]">kg</span>
+                                                </>
+                                              )}
+                                              {hasTime && (
+                                                <>
+                                                  <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    placeholder={set.time || '60'}
+                                                    value={set.completedTime || ''}
+                                                    onChange={(e) => updateSetValue(workout.id, block.id, exercise.id, set.id, 'completedTime', e.target.value)}
+                                                    className="w-16 bg-zinc-700 border border-zinc-600 rounded px-2 py-1.5 text-white text-center text-sm focus:border-[#00FF00] outline-none"
+                                                  />
+                                                  <span className="text-zinc-500 text-[10px]">Sek</span>
+                                                </>
+                                              )}
+                                              {hasDistance && (
+                                                <>
+                                                  <input
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    placeholder={set.distance || '0'}
+                                                    value={set.completedDistance || ''}
+                                                    onChange={(e) => updateSetValue(workout.id, block.id, exercise.id, set.id, 'completedDistance', e.target.value)}
+                                                    className="w-16 bg-zinc-700 border border-zinc-600 rounded px-2 py-1.5 text-white text-center text-sm focus:border-[#00FF00] outline-none"
+                                                  />
+                                                  <span className="text-zinc-500 text-[10px]">m</span>
+                                                </>
+                                              )}
+                                              {hasRpe && (
+                                                <input
+                                                  type="text"
+                                                  inputMode="decimal"
+                                                  placeholder={set.rpe || 'RPE'}
+                                                  value={set.completedRpe || ''}
+                                                  onChange={(e) => updateSetValue(workout.id, block.id, exercise.id, set.id, 'completedRpe', e.target.value)}
+                                                  className="w-12 bg-orange-500/10 border border-orange-500/30 rounded px-1 py-1.5 text-orange-400 text-center text-sm focus:border-orange-500 outline-none"
+                                                />
+                                              )}
+                                            </div>
+                                          ) : (
+                                            /* Preview mode - show values based on metrics */
+                                            !hasTarget && (
+                                              <div className="flex items-center gap-1 text-sm text-zinc-400 flex-wrap">
+                                                {hasReps && <span>{set.reps || '10'}</span>}
+                                                {hasReps && hasWeight && <span className="text-zinc-600">×</span>}
+                                                {hasWeight && <><span>{set.weight || '-'}</span><span className="text-[10px]">kg</span></>}
+                                                {hasTime && <span>{set.time || '-'}s</span>}
+                                                {hasDistance && <span>{set.distance || '-'}m</span>}
+                                                {hasPct1rm && set.pct_1rm && <span className="text-blue-400 text-xs">{set.pct_1rm}%</span>}
+                                                {hasTempo && set.tempo && <span className="text-xs font-mono text-zinc-500">{set.tempo}</span>}
+                                              </div>
+                                            )
+                                          )}
+                                          
+                                          {/* RPE target badge (non-active view) */}
+                                          {!isBlockActive && set.rpe && (
+                                            <span className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded shrink-0">
+                                              RPE {set.rpe}
+                                            </span>
+                                          )}
+
+                                          {/* Rest badge */}
+                                          {set.rest && !isBlockActive && (
+                                            <span className="text-[10px] bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded shrink-0">
+                                              {set.rest}s
+                                            </span>
+                                          )}
+                                          
+                                          {/* Complete Button */}
+                                          {isBlockActive && (
+                                            <button 
+                                              onClick={() => {
+                                                toggleSetComplete(workout.id, block.id, exercise.id, set.id);
+                                                if (!set.isCompleted) startRestTimer(set.id, set.rest ? parseInt(set.rest) : undefined);
+                                              }}
+                                              className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+                                                set.isCompleted 
+                                                  ? 'bg-[#00FF00] text-black' 
+                                                  : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
+                                              }`}
+                                            >
+                                              <Check size={16} />
+                                            </button>
+                                          )}
                                         </div>
-                                      )}
-                                    </React.Fragment>
-                                    );
-                                  })}
+                                        
+                                        {/* Inline Rest Timer */}
+                                        {restTimer.active && restTimer.afterSetId === set.id && (
+                                          <div className="flex items-center justify-center gap-3 py-2 bg-orange-500/10 rounded-lg animate-pulse">
+                                            <span className="text-orange-400 text-sm flex items-center gap-1"><Timer size={14} /> Pause</span>
+                                            <span className="text-white font-mono text-xl font-bold">{formatTime(restTimer.seconds)}</span>
+                                            <button 
+                                              onClick={stopRestTimer}
+                                              className="text-orange-400 hover:text-white text-xs"
+                                            >
+                                              Überspringen
+                                            </button>
+                                          </div>
+                                        )}
+                                      </React.Fragment>
+                                      );
+                                    });
+                                  })()}
                                   
                                   {/* Add Set Button - during active session */}
                                   {isBlockActive && (
