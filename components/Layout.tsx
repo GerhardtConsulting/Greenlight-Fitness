@@ -38,6 +38,7 @@ const Layout: React.FC = () => {
     { label: t('nav.planner'), path: '/planner', icon: <Calendar size={20} /> },
     { label: t('nav.products'), path: '/admin/products', icon: <Package size={20} /> },
     { label: 'Kalender', path: '/calendar', icon: <CalendarClock size={20} /> },
+    { label: 'Chat', path: '/coach/chat', icon: <MessageCircle size={20} /> },
   ];
 
   // Add consolidated CRM for Admins (merged Users + Assignments)

@@ -281,7 +281,7 @@ const CoachChat: React.FC<CoachChatProps> = ({
   }
 
   const containerClass = isFullPage
-    ? 'flex flex-col h-[calc(100vh-200px)] bg-[#0A0A0A]'
+    ? 'flex flex-col h-full bg-[#0A0A0A]'
     : 'flex flex-col h-[500px] bg-[#0A0A0A] border border-zinc-800 rounded-2xl overflow-hidden';
 
   return (

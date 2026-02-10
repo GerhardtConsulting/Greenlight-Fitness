@@ -1598,6 +1598,62 @@ export const getUnreadMessageCount = async (userId: string) => {
   return count || 0;
 };
 
+// Get all conversations for a coach/admin with last message + unread count
+export const getCoachConversations = async (coachId: string) => {
+  // Get all active coaching relationships where this user is coach
+  const { data: relationships, error } = await supabase
+    .from('coaching_relationships')
+    .select(`
+      id, athlete_id, product_id, status, started_at,
+      athlete:profiles!coaching_relationships_athlete_id_fkey(id, email, first_name, last_name, display_name)
+    `)
+    .eq('coach_id', coachId)
+    .eq('status', 'ACTIVE')
+    .order('started_at', { ascending: false });
+  if (error) throw error;
+  if (!relationships || relationships.length === 0) return [];
+
+  // For each relationship, get last message + unread count
+  const conversations = await Promise.all(
+    relationships.map(async (rel: any) => {
+      // Last message
+      const { data: lastMsgArr } = await supabase
+        .from('chat_messages')
+        .select('id, content, message_type, sender_id, created_at, is_read')
+        .eq('coaching_relationship_id', rel.id)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      // Unread count (messages sent TO the coach)
+      const { count: unread } = await supabase
+        .from('chat_messages')
+        .select('*', { count: 'exact', head: true })
+        .eq('coaching_relationship_id', rel.id)
+        .eq('receiver_id', coachId)
+        .eq('is_read', false);
+
+      const lastMsg = lastMsgArr && lastMsgArr.length > 0 ? lastMsgArr[0] : null;
+
+      return {
+        relationshipId: rel.id,
+        athleteId: rel.athlete_id,
+        productId: rel.product_id,
+        athlete: Array.isArray(rel.athlete) ? rel.athlete[0] : rel.athlete,
+        lastMessage: lastMsg,
+        unreadCount: unread || 0,
+        startedAt: rel.started_at,
+      };
+    })
+  );
+
+  // Sort by last message time (most recent first)
+  return conversations.sort((a, b) => {
+    const aTime = a.lastMessage?.created_at || a.startedAt;
+    const bTime = b.lastMessage?.created_at || b.startedAt;
+    return new Date(bTime).getTime() - new Date(aTime).getTime();
+  });
+};
+
 export const subscribeToChatMessages = (
   relationshipId: string,
   onMessage: (message: any) => void
