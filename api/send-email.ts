@@ -19,6 +19,14 @@ import {
   CoachingRejectedData,
   PaymentFailedData,
   DataDeletionConfirmData,
+  WelcomeData,
+  DesignShowcaseData,
+  PasswordResetData,
+  EmailVerificationData,
+  InvitationData,
+  PlanAssignedData,
+  PurchaseConfirmedData,
+  SubscriptionRenewedData,
 } from '../emails/templates';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -48,7 +56,7 @@ function checkRateLimit(email: string): boolean {
   return true;
 }
 
-// Type guard for email data
+// Type guard for email data - all email types
 type EmailDataMap = {
   price_change_notice: PriceChangeNoticeData;
   cancellation_confirmed: CancellationConfirmedData;
@@ -57,6 +65,14 @@ type EmailDataMap = {
   coaching_rejected: CoachingRejectedData;
   payment_failed: PaymentFailedData;
   data_deletion_confirm: DataDeletionConfirmData;
+  welcome: WelcomeData;
+  design_showcase: DesignShowcaseData;
+  password_reset: PasswordResetData;
+  email_verification: EmailVerificationData;
+  invitation: InvitationData;
+  plan_assigned: PlanAssignedData;
+  purchase_confirmed: PurchaseConfirmedData;
+  subscription_renewed: SubscriptionRenewedData;
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
