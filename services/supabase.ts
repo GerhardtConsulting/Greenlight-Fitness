@@ -1189,9 +1189,8 @@ export const getAthletesWithCoaching = async () => {
   return data || [];
 };
 
-// CRM: Get ALL users with coaching relationships + coached athletes
+// CRM: Get ALL users with coaching relationships + coached athletes + purchases
 export const getAllUsersForCRM = async () => {
-  // Fetch all profiles with their coaching relationships as athlete
   const { data, error } = await supabase
     .from('profiles')
     .select(`
@@ -1203,11 +1202,31 @@ export const getAllUsersForCRM = async () => {
       coaching_as_coach:coaching_relationships!coaching_relationships_coach_id_fkey(
         id, athlete_id, product_id, status, started_at,
         athlete:profiles!coaching_relationships_athlete_id_fkey(id, email, first_name, last_name, role)
-      )
+      ),
+      purchases(id, product_id, amount, currency, status, stripe_session_id, created_at),
+      assigned_plans(id, original_plan_id, plan_name, schedule_status, assigned_at)
     `)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
+};
+
+// Admin: Revoke a purchase (set status to 'revoked')
+export const revokePurchase = async (purchaseId: string) => {
+  const { error } = await supabase
+    .from('purchases')
+    .update({ status: 'revoked', updated_at: new Date().toISOString() })
+    .eq('id', purchaseId);
+  if (error) throw error;
+};
+
+// Admin: Revoke an assigned plan
+export const revokeAssignedPlan = async (planId: string) => {
+  const { error } = await supabase
+    .from('assigned_plans')
+    .delete()
+    .eq('id', planId);
+  if (error) throw error;
 };
 
 // Assign athlete to coach (Admin function)

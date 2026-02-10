@@ -98,33 +98,46 @@ const Shop: React.FC = () => {
   };
 
   const fetchPurchases = async () => {
-    if (!user?.email) return;
+    if (!user) return;
+    const purchased = new Set<string>();
+    const activeSubs = new Set<string>();
+
     try {
-      // Fetch directly from Stripe API for accurate data
-      const response = await fetch('/api/get-customer-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerEmail: user.email }),
+      // 1. Fetch from Supabase purchases table (source of truth)
+      const dbPurchases = await getUserPurchases(user.id);
+      dbPurchases.forEach((p: any) => {
+        if (p.product_id) purchased.add(p.product_id);
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const purchased = new Set<string>();
-        const activeSubs = new Set<string>();
-        
-        // Track active subscriptions by product name
-        (data.subscriptions || []).forEach((sub: any) => {
-          if (sub.status === 'active' || sub.status === 'trialing') {
-            activeSubs.add(sub.productName);
+
+      // 2. Also check Stripe API for subscriptions
+      if (user.email) {
+        try {
+          const response = await fetch('/api/get-customer-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customerEmail: user.email }),
+          });
+          if (response.ok) {
+            const data = await response.json();
+            (data.subscriptions || []).forEach((sub: any) => {
+              if (sub.status === 'active' || sub.status === 'trialing') {
+                activeSubs.add(sub.productName);
+              }
+            });
+            // Map Stripe one-time purchases by product metadata
+            (data.purchases || []).forEach((p: any) => {
+              if (p.productId) purchased.add(p.productId);
+            });
           }
-        });
-        
-        setPurchasedProductIds(purchased);
-        setActiveSubscriptionIds(activeSubs);
+        } catch (stripeErr) {
+          console.warn("Stripe API not available, using DB only:", stripeErr);
+        }
       }
-      setStripeDataLoaded(true);
     } catch (error) {
       console.error("Error fetching purchases", error);
+    } finally {
+      setPurchasedProductIds(purchased);
+      setActiveSubscriptionIds(activeSubs);
       setStripeDataLoaded(true);
     }
   };

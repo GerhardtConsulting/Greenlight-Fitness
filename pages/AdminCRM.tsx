@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   getAllUsersForCRM, getUsersByRole, assignAthleteToCoach, endCoachingRelationship,
   updateProfile, getProducts, grantCoachingManually, createCoachingRelationship,
-  createInvitation
+  createInvitation, revokePurchase, revokeAssignedPlan
 } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -10,7 +10,8 @@ import { UserRole } from '../types';
 import {
   Users, Search, UserPlus, X, Check, Link2, Unlink, ChevronDown, User,
   Dumbbell, Shield, ShieldCheck, Gift, Mail, Bell, MessageCircle, Filter,
-  ArrowUpDown, Loader2, Calendar, Package, AlertCircle, Eye, MoreVertical
+  ArrowUpDown, Loader2, Calendar, Package, AlertCircle, Eye, MoreVertical,
+  Ban, Trash2, ShoppingCart, ClipboardList, CreditCard
 } from 'lucide-react';
 import { showLocalNotification } from '../services/notifications';
 
@@ -37,6 +38,22 @@ interface CRMUser {
     status: string;
     started_at: string;
     athlete: any;
+  }[];
+  purchases: {
+    id: string;
+    product_id: string;
+    amount: number;
+    currency: string;
+    status: string;
+    stripe_session_id?: string;
+    created_at: string;
+  }[];
+  assigned_plans: {
+    id: string;
+    original_plan_id: string;
+    plan_name: string;
+    schedule_status: string;
+    assigned_at: string;
   }[];
 }
 
@@ -134,10 +151,19 @@ const AdminCRM: React.FC = () => {
     const productIds = new Set<string>();
     u.coaching_as_athlete?.forEach(r => { if (r.product_id) productIds.add(r.product_id); });
     u.coaching_as_coach?.forEach(r => { if (r.product_id) productIds.add(r.product_id); });
+    u.purchases?.forEach(p => { if (p.product_id && p.status === 'completed') productIds.add(p.product_id); });
     return [...productIds].map(pid => {
       const p = products.find(pr => pr.id === pid);
       return p?.title || pid.slice(0, 8);
     });
+  };
+
+  const getActivePurchases = (u: CRMUser) => {
+    return u.purchases?.filter(p => p.status === 'completed') || [];
+  };
+
+  const getActiveAssignedPlans = (u: CRMUser) => {
+    return u.assigned_plans || [];
   };
 
   // --- Filtering + Sorting ---
@@ -160,12 +186,13 @@ const AdminCRM: React.FC = () => {
       else if (statusFilter === 'WITHOUT_COACH') matchesStatus = u.role === 'ATHLETE' && !getActiveCoach(u);
       else if (statusFilter === 'HAS_ATHLETES') matchesStatus = getActiveAthletes(u).length > 0;
 
-      // Product
+      // Product (coaching + purchases)
       let matchesProduct = true;
       if (productFilter !== 'ALL') {
         const linked = new Set<string>();
         u.coaching_as_athlete?.forEach(r => { if (r.product_id) linked.add(r.product_id); });
         u.coaching_as_coach?.forEach(r => { if (r.product_id) linked.add(r.product_id); });
+        u.purchases?.forEach(p => { if (p.product_id && p.status === 'completed') linked.add(p.product_id); });
         matchesProduct = linked.has(productFilter);
       }
 
@@ -232,6 +259,36 @@ const AdminCRM: React.FC = () => {
     } catch (error) {
       console.error("Error ending relationship:", error);
       alert("Fehler beim Beenden der Zuweisung");
+    }
+  };
+
+  const handleRevokePurchase = async (purchaseId: string, productName: string, userName: string) => {
+    if (!confirm(`Kauf "${productName}" von ${userName} wirklich widerrufen?`)) return;
+    try {
+      await revokePurchase(purchaseId);
+      await fetchData();
+      if (detailUser) {
+        const refreshed = allUsers.find(u => u.id === detailUser.id);
+        if (refreshed) setDetailUser(refreshed);
+      }
+    } catch (error) {
+      console.error("Error revoking purchase:", error);
+      alert("Fehler beim Widerrufen des Kaufs");
+    }
+  };
+
+  const handleRevokeAssignedPlan = async (planId: string, planName: string, userName: string) => {
+    if (!confirm(`Trainingsplan "${planName}" von ${userName} wirklich entziehen?`)) return;
+    try {
+      await revokeAssignedPlan(planId);
+      await fetchData();
+      if (detailUser) {
+        const refreshed = allUsers.find(u => u.id === detailUser.id);
+        if (refreshed) setDetailUser(refreshed);
+      }
+    } catch (error) {
+      console.error("Error revoking plan:", error);
+      alert("Fehler beim Entziehen des Plans");
     }
   };
 
@@ -615,11 +672,23 @@ const AdminCRM: React.FC = () => {
                               <Dumbbell size={14} className={rel.status === 'ACTIVE' ? 'text-[#00FF00]' : 'text-zinc-600'} />
                               <span className="text-sm font-medium text-white">{getUserName(rel.coach)}</span>
                             </div>
-                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${rel.status === 'ACTIVE' ? 'bg-[#00FF00]/10 text-[#00FF00]' : 'bg-zinc-800 text-zinc-500'}`}>
-                              {rel.status}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${rel.status === 'ACTIVE' ? 'bg-[#00FF00]/10 text-[#00FF00]' : 'bg-zinc-800 text-zinc-500'}`}>
+                                {rel.status}
+                              </span>
+                              {rel.status === 'ACTIVE' && (
+                                <button
+                                  onClick={() => handleUnassign(rel.id, getUserName(detailUser), getUserName(rel.coach))}
+                                  className="p-1 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                                  title="Coaching beenden"
+                                >
+                                  <Ban size={12} />
+                                </button>
+                              )}
+                            </div>
                           </div>
                           {productName && <div className="text-xs text-zinc-500 mt-1 flex items-center gap-1"><Package size={10} /> {productName}</div>}
+                          {!rel.product_id && <div className="text-xs text-amber-500/70 mt-1 flex items-center gap-1"><AlertCircle size={10} /> Ohne Produkt (manuell)</div>}
                           <div className="text-xs text-zinc-600 mt-1">Seit {new Date(rel.started_at).toLocaleDateString('de-DE')}</div>
                         </div>
                       );
@@ -642,9 +711,20 @@ const AdminCRM: React.FC = () => {
                               <User size={14} className={rel.status === 'ACTIVE' ? 'text-blue-400' : 'text-zinc-600'} />
                               <span className="text-sm font-medium text-white">{getUserName(rel.athlete)}</span>
                             </div>
-                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${rel.status === 'ACTIVE' ? 'bg-blue-500/10 text-blue-400' : 'bg-zinc-800 text-zinc-500'}`}>
-                              {rel.status}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${rel.status === 'ACTIVE' ? 'bg-blue-500/10 text-blue-400' : 'bg-zinc-800 text-zinc-500'}`}>
+                                {rel.status}
+                              </span>
+                              {rel.status === 'ACTIVE' && (
+                                <button
+                                  onClick={() => handleUnassign(rel.id, getUserName(rel.athlete), getUserName(detailUser))}
+                                  className="p-1 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                                  title="Coaching beenden"
+                                >
+                                  <Ban size={12} />
+                                </button>
+                              )}
+                            </div>
                           </div>
                           {productName && <div className="text-xs text-zinc-500 mt-1 flex items-center gap-1"><Package size={10} /> {productName}</div>}
                           <div className="text-xs text-zinc-600 mt-1">Seit {new Date(rel.started_at).toLocaleDateString('de-DE')}</div>
@@ -655,19 +735,95 @@ const AdminCRM: React.FC = () => {
                 </div>
               )}
 
-              {/* Linked Products */}
-              {getLinkedProductNames(detailUser).length > 0 && (
-                <div>
-                  <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">Verknüpfte Produkte</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {getLinkedProductNames(detailUser).map((name, i) => (
-                      <span key={i} className="text-xs bg-zinc-800 text-zinc-300 px-3 py-1.5 rounded-lg border border-zinc-700">
-                        <Package size={10} className="inline mr-1" /> {name}
-                      </span>
+              {/* Purchases */}
+              <div>
+                <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <CreditCard size={12} /> Käufe ({detailUser.purchases?.length || 0})
+                </h4>
+                {detailUser.purchases && detailUser.purchases.length > 0 ? (
+                  <div className="space-y-2">
+                    {detailUser.purchases.map(purchase => {
+                      const productName = products.find(p => p.id === purchase.product_id)?.title || 'Unbekanntes Produkt';
+                      const isActive = purchase.status === 'completed';
+                      return (
+                        <div key={purchase.id} className={`p-3 rounded-xl border ${isActive ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-zinc-800 bg-zinc-900/50'}`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <ShoppingCart size={14} className={isActive ? 'text-emerald-400' : 'text-zinc-600'} />
+                              <span className="text-sm font-medium text-white">{productName}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                                isActive ? 'bg-emerald-500/10 text-emerald-400' :
+                                purchase.status === 'revoked' ? 'bg-red-500/10 text-red-400' :
+                                'bg-zinc-800 text-zinc-500'
+                              }`}>
+                                {purchase.status === 'completed' ? 'Aktiv' : purchase.status === 'revoked' ? 'Widerrufen' : purchase.status}
+                              </span>
+                              {isActive && (
+                                <button
+                                  onClick={() => handleRevokePurchase(purchase.id, productName, getUserName(detailUser))}
+                                  className="p-1 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                                  title="Kauf widerrufen"
+                                >
+                                  <Ban size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1.5">
+                            <span className="text-xs text-zinc-400 font-medium">{purchase.amount} {purchase.currency?.toUpperCase()}</span>
+                            <span className="text-xs text-zinc-600">{new Date(purchase.created_at).toLocaleDateString('de-DE')}</span>
+                          </div>
+                          {purchase.stripe_session_id && <div className="text-[10px] text-zinc-700 mt-1 font-mono truncate">Stripe: {purchase.stripe_session_id.slice(0, 20)}...</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-zinc-600 italic p-3 bg-zinc-900/30 rounded-xl border border-zinc-800/50 text-center">
+                    Keine Käufe vorhanden
+                  </div>
+                )}
+              </div>
+
+              {/* Assigned Plans */}
+              <div>
+                <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <ClipboardList size={12} /> Trainingspläne ({detailUser.assigned_plans?.length || 0})
+                </h4>
+                {detailUser.assigned_plans && detailUser.assigned_plans.length > 0 ? (
+                  <div className="space-y-2">
+                    {detailUser.assigned_plans.map(plan => (
+                      <div key={plan.id} className="p-3 rounded-xl border border-zinc-800 bg-zinc-900/50">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <ClipboardList size={14} className="text-zinc-400" />
+                            <span className="text-sm font-medium text-white">{plan.plan_name}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-zinc-800 text-zinc-400">
+                              {plan.schedule_status}
+                            </span>
+                            <button
+                              onClick={() => handleRevokeAssignedPlan(plan.id, plan.plan_name, getUserName(detailUser))}
+                              className="p-1 text-red-400/60 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+                              title="Plan entziehen"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="text-xs text-zinc-600 mt-1">Zugewiesen am {new Date(plan.assigned_at).toLocaleDateString('de-DE')}</div>
+                      </div>
                     ))}
                   </div>
-                </div>
-              )}
+                ) : (
+                  <div className="text-xs text-zinc-600 italic p-3 bg-zinc-900/30 rounded-xl border border-zinc-800/50 text-center">
+                    Keine Trainingspläne zugewiesen
+                  </div>
+                )}
+              </div>
 
               {/* Quick Actions */}
               <div>
@@ -679,6 +835,14 @@ const AdminCRM: React.FC = () => {
                       className="w-full flex items-center gap-2 px-4 py-3 bg-[#00FF00]/10 text-[#00FF00] rounded-xl hover:bg-[#00FF00]/20 transition-colors text-sm font-bold"
                     >
                       <UserPlus size={16} /> Coach zuweisen
+                    </button>
+                  )}
+                  {detailUser.role === 'ATHLETE' && getActiveCoach(detailUser) && (
+                    <button
+                      onClick={() => { setDetailUser(null); openAssignModal(detailUser); }}
+                      className="w-full flex items-center gap-2 px-4 py-3 bg-blue-500/10 text-blue-400 rounded-xl hover:bg-blue-500/20 transition-colors text-sm font-bold"
+                    >
+                      <Link2 size={16} /> Anderen Coach zuweisen
                     </button>
                   )}
                   <div className="flex gap-2">
