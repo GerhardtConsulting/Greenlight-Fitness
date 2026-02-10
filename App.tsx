@@ -127,6 +127,8 @@ const App: React.FC = () => {
               </Route>
             </Route>
 
+            {/* Redirect /settings to /profile#notifications (for email links) */}
+            <Route path="/settings" element={<Navigate to="/profile#notifications" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

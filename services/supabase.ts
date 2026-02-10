@@ -2514,3 +2514,87 @@ export const getCoachAppointments = async (coachId: string, status?: string) => 
   if (error) throw error;
   return data || [];
 };
+
+// ============ NOTIFICATION PREFERENCES ============
+
+export interface NotificationPreferences {
+  id?: string;
+  user_id: string;
+  email_enabled: boolean;
+  push_enabled: boolean;
+  // Athlete
+  training_reminders: boolean;
+  checkin_reminders: boolean;
+  weekly_progress: boolean;
+  inactivity_alerts: boolean;
+  // Coach
+  athlete_summary: boolean;
+  churn_risk_alerts: boolean;
+  // Admin
+  business_reports: boolean;
+  churn_alerts: boolean;
+  // Timing
+  preferred_send_hour: number;
+  timezone: string;
+}
+
+const DEFAULT_NOTIFICATION_PREFS: Omit<NotificationPreferences, 'user_id'> = {
+  email_enabled: true,
+  push_enabled: true,
+  training_reminders: true,
+  checkin_reminders: true,
+  weekly_progress: true,
+  inactivity_alerts: true,
+  athlete_summary: true,
+  churn_risk_alerts: true,
+  business_reports: true,
+  churn_alerts: true,
+  preferred_send_hour: 8,
+  timezone: 'Europe/Berlin',
+};
+
+export const getNotificationPreferences = async (userId: string): Promise<NotificationPreferences> => {
+  const { data, error } = await supabase
+    .from('notification_preferences')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !data) {
+    // Return defaults if no record exists yet
+    return { user_id: userId, ...DEFAULT_NOTIFICATION_PREFS };
+  }
+
+  return data as NotificationPreferences;
+};
+
+export const saveNotificationPreferences = async (
+  userId: string,
+  prefs: Partial<NotificationPreferences>
+): Promise<NotificationPreferences> => {
+  const { data, error } = await supabase
+    .from('notification_preferences')
+    .upsert(
+      { user_id: userId, ...prefs, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    )
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as NotificationPreferences;
+};
+
+export const disableAllEmailNotifications = async (userId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('notification_preferences')
+    .upsert(
+      {
+        user_id: userId,
+        email_enabled: false,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'user_id' }
+    );
+  if (error) throw error;
+};

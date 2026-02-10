@@ -193,7 +193,7 @@ const secondaryButton = (text: string, href: string, color: string = '#3B82F6') 
   </table>
 `;
 
-// Footer with legal requirements (DSGVO)
+// Footer with legal requirements (DSGVO Art. 7(3), Art. 13/14, ePrivacy)
 const getFooter = () => `
   <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #27272A;">
     <tr>
@@ -208,6 +208,14 @@ const getFooter = () => `
         <a href="https://greenlight-fitness.de/datenschutz" style="color: #71717A; text-decoration: underline;">Datenschutz</a>
         &nbsp;•&nbsp;
         <a href="mailto:support@greenlight-fitness.de" style="color: #71717A; text-decoration: underline;">Kontakt</a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" style="color: #52525B; font-size: 11px; padding-top: 12px;">
+        Du erhältst diese E-Mail, weil du ein Greenlight Fitness Konto hast.<br>
+        <a href="https://app.greenlight-fitness.de/profile#notifications" style="color: #52525B; text-decoration: underline;">E-Mail-Einstellungen ändern</a>
+        &nbsp;•&nbsp;
+        <a href="https://app.greenlight-fitness.de/api/unsubscribe" style="color: #52525B; text-decoration: underline;">Alle E-Mails abbestellen</a>
       </td>
     </tr>
   </table>

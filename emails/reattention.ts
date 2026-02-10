@@ -38,7 +38,9 @@ const getFooter = () => `
     <tr>
       <td align="center" style="color: #52525B; font-size: 11px; padding-top: 12px;">
         Du erhältst diese E-Mail, weil du ein Greenlight Fitness Konto hast.<br>
-        <a href="https://app.greenlight-fitness.de/settings" style="color: #52525B; text-decoration: underline;">E-Mail-Einstellungen ändern</a>
+        <a href="https://app.greenlight-fitness.de/profile#notifications" style="color: #52525B; text-decoration: underline;">E-Mail-Einstellungen ändern</a>
+        &nbsp;•&nbsp;
+        <a href="https://app.greenlight-fitness.de/api/unsubscribe" style="color: #52525B; text-decoration: underline;">Alle E-Mails abbestellen</a>
       </td>
     </tr>
   </table>
