@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getProducts, getPlans, createProduct, updateProduct, deleteProduct, uploadFile, getPublicUrl } from '../services/supabase';
+import { getProducts, getPlans, createProduct, updateProduct, deleteProduct, uploadFile, getPublicUrl, getCoachCalendars } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Product, TrainingPlan, ProductCategory, ProductType } from '../types';
@@ -7,7 +7,7 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import { 
   Package, Plus, Trash2, Edit, X, Image as ImageIcon, Upload, Loader2,
-  ChevronLeft, DollarSign, Tag, FileText, Layers, CheckCircle, 
+  ChevronLeft, DollarSign, Tag, FileText, Layers, CheckCircle, Calendar,
   AlertCircle, Eye, EyeOff, Link2, Sparkles, Save, Info, AlertTriangle, Scale
 } from 'lucide-react';
 import PriceChangeChecklist from '../components/PriceChangeChecklist';
@@ -48,6 +48,8 @@ const AdminProducts: React.FC = () => {
   const [creatingStripe, setCreatingStripe] = useState(false);
   const [showPriceChangeWarning, setShowPriceChangeWarning] = useState(false);
   const [pendingFormSubmit, setPendingFormSubmit] = useState<React.FormEvent | null>(null);
+  const [coachCalendars, setCoachCalendars] = useState<any[]>([]);
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>('');
 
   useEffect(() => {
     if (user) fetchData();
@@ -93,6 +95,9 @@ const AdminProducts: React.FC = () => {
         description: d.description,
         createdAt: d.created_at,
       } as TrainingPlan)));
+
+      const calData = await getCoachCalendars(user.id);
+      setCoachCalendars(calData);
     } catch (err) {
       console.error("Error fetching admin data:", err);
       setError("Fehler beim Laden der Daten");
@@ -126,9 +131,10 @@ const AdminProducts: React.FC = () => {
     setViewMode('create');
   };
 
-  const handleEdit = (product: Product) => {
+  const handleEdit = (product: any) => {
     setEditingProduct(product);
     setFormData(product);
+    setSelectedCalendarId(product.calendar_id || '');
     setViewMode('edit');
   };
 
@@ -279,6 +285,7 @@ const AdminProducts: React.FC = () => {
         thumbnail_url: formData.thumbnailUrl || '',
         is_active: formData.isActive ?? true,
         has_chat_access: formData.hasChatAccess ?? false,
+        calendar_id: selectedCalendarId || null,
         stripe_product_id: stripeData?.stripe_product_id || null,
         stripe_price_id: stripeData?.stripe_price_id || null,
       };
@@ -808,7 +815,35 @@ const AdminProducts: React.FC = () => {
           </div>
         </section>
 
-        {/* SECTION 7: Chat-Zugang */}
+        {/* SECTION 7: Kalender-Zuordnung */}
+        {(formData.type === 'COACHING_1ON1') && (
+          <section className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-500/10">
+                <Calendar size={20} className="text-blue-400" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Terminkalender</h2>
+                <p className="text-xs text-zinc-500">Kalender für Vorabgespräche und 1:1 Termine zuordnen</p>
+              </div>
+            </div>
+            <select
+              value={selectedCalendarId}
+              onChange={e => setSelectedCalendarId(e.target.value)}
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-4 text-white focus:border-[#00FF00] outline-none"
+            >
+              <option value="">Kein Kalender (manuelle Terminvergabe)</option>
+              {coachCalendars.map(cal => (
+                <option key={cal.id} value={cal.id}>{cal.name} ({cal.slot_duration_minutes} Min)</option>
+              ))}
+            </select>
+            {coachCalendars.length === 0 && (
+              <p className="text-xs text-amber-400 mt-2">Erstelle zuerst einen Kalender unter "Terminkalender" in der Navigation.</p>
+            )}
+          </section>
+        )}
+
+        {/* SECTION 8: Chat-Zugang */}
         <section className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

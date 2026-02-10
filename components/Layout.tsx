@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-do
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { UserRole } from '../types';
-import { LayoutDashboard, Dumbbell, Calendar, LogOut, Menu, X, Globe, ShoppingBag, Package, Home, Users, User, MessageCircle, Scale, UserPlus } from 'lucide-react';
+import { LayoutDashboard, Dumbbell, Calendar, CalendarClock, LogOut, Menu, X, Globe, ShoppingBag, Package, Home, Users, User, MessageCircle, Scale, UserPlus } from 'lucide-react';
 import { signOut } from '../services/supabase';
 
 const Layout: React.FC = () => {
@@ -37,6 +37,7 @@ const Layout: React.FC = () => {
     { label: t('nav.exercises'), path: '/exercises', icon: <Dumbbell size={20} /> },
     { label: t('nav.planner'), path: '/planner', icon: <Calendar size={20} /> },
     { label: t('nav.products'), path: '/admin/products', icon: <Package size={20} /> },
+    { label: 'Kalender', path: '/calendar', icon: <CalendarClock size={20} /> },
   ];
 
   // Add consolidated CRM for Admins (merged Users + Assignments)

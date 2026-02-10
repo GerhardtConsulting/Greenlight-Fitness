@@ -1625,3 +1625,282 @@ export const checkChatAccess = async (athleteId: string) => {
   
   return { hasAccess, relationship };
 };
+
+// ============ COACH CALENDARS ============
+
+export const getCoachCalendars = async (coachId: string) => {
+  const { data, error } = await supabase
+    .from('coach_calendars')
+    .select('*')
+    .eq('coach_id', coachId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+};
+
+export const createCoachCalendar = async (calendar: {
+  coach_id: string;
+  name: string;
+  description?: string;
+  slot_duration_minutes?: number;
+  buffer_minutes?: number;
+  max_advance_days?: number;
+  min_notice_hours?: number;
+}) => {
+  const { data, error } = await supabase
+    .from('coach_calendars')
+    .insert(calendar)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const updateCoachCalendar = async (id: string, updates: any) => {
+  const { data, error } = await supabase
+    .from('coach_calendars')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const deleteCoachCalendar = async (id: string) => {
+  const { error } = await supabase
+    .from('coach_calendars')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ============ COACH AVAILABILITY ============
+
+export const getCalendarAvailability = async (calendarId: string) => {
+  const { data, error } = await supabase
+    .from('coach_availability')
+    .select('*')
+    .eq('calendar_id', calendarId)
+    .order('day_of_week', { ascending: true })
+    .order('start_time', { ascending: true });
+  if (error) throw error;
+  return data || [];
+};
+
+export const setCalendarAvailability = async (calendarId: string, slots: { day_of_week: number; start_time: string; end_time: string }[]) => {
+  // Delete existing, then insert new
+  const { error: delError } = await supabase
+    .from('coach_availability')
+    .delete()
+    .eq('calendar_id', calendarId);
+  if (delError) throw delError;
+
+  if (slots.length === 0) return [];
+
+  const rows = slots.map(s => ({ calendar_id: calendarId, ...s }));
+  const { data, error } = await supabase
+    .from('coach_availability')
+    .insert(rows)
+    .select();
+  if (error) throw error;
+  return data || [];
+};
+
+// ============ COACH BLOCKED TIMES ============
+
+export const getCoachBlockedTimes = async (coachId: string) => {
+  const { data, error } = await supabase
+    .from('coach_blocked_times')
+    .select('*')
+    .eq('coach_id', coachId)
+    .order('blocked_date', { ascending: true });
+  if (error) throw error;
+  return data || [];
+};
+
+export const addCoachBlockedTime = async (blocked: {
+  coach_id: string;
+  blocked_date: string;
+  all_day?: boolean;
+  start_time?: string;
+  end_time?: string;
+  reason?: string;
+}) => {
+  const { data, error } = await supabase
+    .from('coach_blocked_times')
+    .insert(blocked)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+export const deleteCoachBlockedTime = async (id: string) => {
+  const { error } = await supabase
+    .from('coach_blocked_times')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+};
+
+// ============ AVAILABLE SLOTS COMPUTATION ============
+
+export const getAvailableSlots = async (calendarId: string, date: string): Promise<string[]> => {
+  // 1. Fetch calendar settings
+  const { data: calendar, error: calErr } = await supabase
+    .from('coach_calendars')
+    .select('*')
+    .eq('id', calendarId)
+    .single();
+  if (calErr || !calendar) return [];
+
+  const coachId = calendar.coach_id;
+  const slotDuration = calendar.slot_duration_minutes || 30;
+  const buffer = calendar.buffer_minutes || 0;
+  const minNotice = calendar.min_notice_hours || 24;
+
+  // 2. Get day of week for the requested date
+  const dateObj = new Date(date + 'T00:00:00');
+  const dayOfWeek = dateObj.getDay(); // 0=Sun
+
+  // 3. Fetch availability windows for this day
+  const { data: avail } = await supabase
+    .from('coach_availability')
+    .select('start_time, end_time')
+    .eq('calendar_id', calendarId)
+    .eq('day_of_week', dayOfWeek);
+  if (!avail || avail.length === 0) return [];
+
+  // 4. Generate all possible slots
+  const allSlots: string[] = [];
+  for (const window of avail) {
+    const [sh, sm] = window.start_time.split(':').map(Number);
+    const [eh, em] = window.end_time.split(':').map(Number);
+    const startMin = sh * 60 + sm;
+    const endMin = eh * 60 + em;
+    const step = slotDuration + buffer;
+
+    for (let t = startMin; t + slotDuration <= endMin; t += step) {
+      const h = Math.floor(t / 60);
+      const m = t % 60;
+      allSlots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+  }
+
+  if (allSlots.length === 0) return [];
+
+  // 5. Fetch existing bookings for this date
+  const { data: bookings } = await supabase
+    .from('appointments')
+    .select('time, duration_minutes')
+    .eq('coach_id', coachId)
+    .eq('date', date)
+    .in('status', ['PENDING', 'CONFIRMED']);
+
+  const bookedSlots = new Set<string>();
+  if (bookings) {
+    for (const b of bookings) {
+      // Mark the booked slot and any overlapping slots
+      const [bh, bm] = (b.time || '00:00').split(':').map(Number);
+      const bStart = bh * 60 + bm;
+      const bEnd = bStart + (b.duration_minutes || slotDuration);
+      for (const slot of allSlots) {
+        const [sh2, sm2] = slot.split(':').map(Number);
+        const sStart = sh2 * 60 + sm2;
+        const sEnd = sStart + slotDuration;
+        if (sStart < bEnd && sEnd > bStart) {
+          bookedSlots.add(slot);
+        }
+      }
+    }
+  }
+
+  // 6. Fetch blocked times for this date
+  const { data: blocked } = await supabase
+    .from('coach_blocked_times')
+    .select('all_day, start_time, end_time')
+    .eq('coach_id', coachId)
+    .eq('blocked_date', date);
+
+  const blockedSlots = new Set<string>();
+  if (blocked) {
+    for (const b of blocked) {
+      if (b.all_day) {
+        // All slots blocked
+        return [];
+      }
+      if (b.start_time && b.end_time) {
+        const [bs, bsm] = b.start_time.split(':').map(Number);
+        const [be, bem] = b.end_time.split(':').map(Number);
+        const bStart = bs * 60 + bsm;
+        const bEnd = be * 60 + bem;
+        for (const slot of allSlots) {
+          const [sh2, sm2] = slot.split(':').map(Number);
+          const sStart = sh2 * 60 + sm2;
+          const sEnd = sStart + slotDuration;
+          if (sStart < bEnd && sEnd > bStart) {
+            blockedSlots.add(slot);
+          }
+        }
+      }
+    }
+  }
+
+  // 7. Filter: remove booked, blocked, past, and within min_notice
+  const now = new Date();
+  const minNoticeTime = new Date(now.getTime() + minNotice * 60 * 60 * 1000);
+
+  return allSlots.filter(slot => {
+    if (bookedSlots.has(slot) || blockedSlots.has(slot)) return false;
+    const [h, m] = slot.split(':').map(Number);
+    const slotDate = new Date(date + 'T00:00:00');
+    slotDate.setHours(h, m, 0, 0);
+    return slotDate > minNoticeTime;
+  });
+};
+
+// Get dates with availability for a calendar within a date range
+export const getDatesWithAvailability = async (calendarId: string, startDate: string, endDate: string): Promise<string[]> => {
+  const { data: calendar } = await supabase
+    .from('coach_calendars')
+    .select('coach_id')
+    .eq('id', calendarId)
+    .single();
+  if (!calendar) return [];
+
+  // Get which days of week have availability
+  const { data: avail } = await supabase
+    .from('coach_availability')
+    .select('day_of_week')
+    .eq('calendar_id', calendarId);
+  if (!avail || avail.length === 0) return [];
+
+  const availDays = new Set(avail.map(a => a.day_of_week));
+
+  // Get all blocked dates (all-day blocks)
+  const { data: blocked } = await supabase
+    .from('coach_blocked_times')
+    .select('blocked_date')
+    .eq('coach_id', calendar.coach_id)
+    .eq('all_day', true)
+    .gte('blocked_date', startDate)
+    .lte('blocked_date', endDate);
+  const blockedDates = new Set((blocked || []).map(b => b.blocked_date));
+
+  // Generate dates in range that have availability
+  const dates: string[] = [];
+  const current = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+
+  while (current <= end) {
+    const dow = current.getDay();
+    const dateStr = current.toISOString().split('T')[0];
+    if (availDays.has(dow) && !blockedDates.has(dateStr)) {
+      dates.push(dateStr);
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return dates;
+};

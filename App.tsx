@@ -13,6 +13,7 @@ import Planner from './pages/Planner';
 import AdminProducts from './pages/AdminProducts';
 import AdminUsers from './pages/AdminUsers';
 import AdminAthleteAssignment from './pages/AdminAthleteAssignment';
+import CoachCalendarSetup from './pages/CoachCalendarSetup';
 import Shop from './pages/Shop';
 import Profile from './pages/Profile';
 import Chat from './pages/Chat';
@@ -85,6 +86,11 @@ const App: React.FC = () => {
               <Route element={<ProtectedRoute allowedRoles={[UserRole.COACH, UserRole.ADMIN, UserRole.ATHLETE]} />}>
                 <Route path="/exercises" element={<Exercises />} />
                 <Route path="/planner" element={<Planner />} />
+              </Route>
+
+              {/* Coach & Admin: Calendar Setup */}
+              <Route element={<ProtectedRoute allowedRoles={[UserRole.COACH, UserRole.ADMIN]} />}>
+                <Route path="/calendar" element={<CoachCalendarSetup />} />
               </Route>
 
               {/* Admin Only (Products & Users) */}

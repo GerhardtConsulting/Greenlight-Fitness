@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Product, AssignedPlan, TrainingWeek, TrainingSession, TrainingPlan, ProductCategory, ProductType, Appointment, CoachingApproval } from '../types';
 import Button from '../components/Button';
+import BookingWidget from '../components/BookingWidget';
 import { ShoppingBag, Check, ShieldCheck, Lock, Unlock, ArrowRight, X, Calendar, Phone, Clock, CheckCircle2 } from 'lucide-react';
 
 const CATEGORIES: { id: ProductCategory | 'ALL'; label: string }[] = [
@@ -161,7 +162,8 @@ const Shop: React.FC = () => {
         interval: d.interval,
         thumbnailUrl: d.thumbnail_url,
         isActive: d.is_active,
-      } as Product)));
+        calendarId: d.calendar_id,
+      } as any)));
     } catch (error) {
       console.error("Error fetching products:", error);
     } finally {
@@ -308,20 +310,24 @@ const Shop: React.FC = () => {
     }
   }, [products, ownedPlanIds]);
 
-  const handleBookAppointment = async () => {
-      if(!user || !selectedProduct || !selectedDate || !selectedTime) return;
+  const handleBookAppointment = async (dateOverride?: string, timeOverride?: string) => {
+      const bookDate = dateOverride || selectedDate;
+      const bookTime = timeOverride || selectedTime;
+      if(!user || !selectedProduct || !bookDate || !bookTime) return;
       setPurchasing('booking');
       
       try {
           // Create the appointment
+          const calId = (selectedProduct as any).calendarId || null;
           const appointment = await createAppointment({
               athlete_id: user.id,
               athlete_name: user.email || 'Athlete',
               coach_id: selectedProduct.coachId,
-              date: selectedDate,
-              time: selectedTime,
+              date: bookDate,
+              time: bookTime,
               status: 'PENDING',
               type: 'CONSULTATION',
+              calendar_id: calId,
           });
           
           // For COACHING_1ON1: Also create a coaching approval entry
@@ -459,32 +465,45 @@ const Shop: React.FC = () => {
 
                   {/* Booking Flow */}
                   {bookingMode ? (
-                      <div className="p-6 max-w-lg mx-auto">
-                          <h3 className="text-2xl font-bold text-white mb-2">Book Consultation</h3>
-                          <p className="text-zinc-400 mb-6">Choose a time for your free initial strategy call.</p>
-                          
-                          <div className="space-y-4">
-                              <div className="flex flex-col gap-2">
-                                  <label className="text-xs font-bold uppercase text-zinc-500">Date</label>
-                                  <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-zinc-900 border border-zinc-700 rounded-xl p-4 text-white w-full focus:border-[#00FF00] outline-none" />
+                      <div className="p-6 max-w-2xl mx-auto">
+                          {(selectedProduct as any).calendarId ? (
+                              <BookingWidget
+                                calendarId={(selectedProduct as any).calendarId}
+                                calendarName={selectedProduct.title}
+                                onSelectSlot={(date, time) => {
+                                  handleBookAppointment(date, time);
+                                }}
+                                onCancel={() => setBookingMode(false)}
+                              />
+                          ) : (
+                              <div className="bg-[#1C1C1E] border border-zinc-800 rounded-[2rem] p-8">
+                                  <h3 className="text-2xl font-bold text-white mb-2">Termin buchen</h3>
+                                  <p className="text-zinc-400 mb-6">W\u00e4hle einen Termin f\u00fcr dein kostenloses Erstgespr\u00e4ch.</p>
+                                  
+                                  <div className="space-y-4">
+                                      <div className="flex flex-col gap-2">
+                                          <label className="text-xs font-bold uppercase text-zinc-500">Datum</label>
+                                          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-zinc-900 border border-zinc-700 rounded-xl p-4 text-white w-full focus:border-[#00FF00] outline-none" />
+                                      </div>
+                                      <div className="flex flex-col gap-2">
+                                          <label className="text-xs font-bold uppercase text-zinc-500">Uhrzeit</label>
+                                          <select value={selectedTime} onChange={e => setSelectedTime(e.target.value)} className="bg-zinc-900 border border-zinc-700 rounded-xl p-4 text-white w-full focus:border-[#00FF00] outline-none">
+                                              <option value="">Zeit w\u00e4hlen</option>
+                                              <option value="09:00">09:00</option>
+                                              <option value="10:00">10:00</option>
+                                              <option value="11:00">11:00</option>
+                                              <option value="14:00">14:00</option>
+                                              <option value="15:00">15:00</option>
+                                              <option value="16:00">16:00</option>
+                                          </select>
+                                      </div>
+                                      <Button onClick={handleBookAppointment} disabled={!selectedDate || !selectedTime || purchasing === 'booking'} fullWidth className="mt-4">
+                                          {purchasing === 'booking' ? "Buche..." : "Termin best\u00e4tigen"}
+                                      </Button>
+                                      <button onClick={() => setBookingMode(false)} className="w-full text-center text-zinc-500 py-4 hover:text-white">Abbrechen</button>
+                                  </div>
                               </div>
-                              <div className="flex flex-col gap-2">
-                                  <label className="text-xs font-bold uppercase text-zinc-500">Time</label>
-                                  <select value={selectedTime} onChange={e => setSelectedTime(e.target.value)} className="bg-zinc-900 border border-zinc-700 rounded-xl p-4 text-white w-full focus:border-[#00FF00] outline-none">
-                                      <option value="">Select Time</option>
-                                      <option value="09:00">09:00</option>
-                                      <option value="10:00">10:00</option>
-                                      <option value="11:00">11:00</option>
-                                      <option value="14:00">14:00</option>
-                                      <option value="15:00">15:00</option>
-                                      <option value="16:00">16:00</option>
-                                  </select>
-                              </div>
-                              <Button onClick={handleBookAppointment} disabled={!selectedDate || !selectedTime || purchasing === 'booking'} fullWidth className="mt-4">
-                                  {purchasing === 'booking' ? "Booking..." : "Confirm Booking"}
-                              </Button>
-                              <button onClick={() => setBookingMode(false)} className="w-full text-center text-zinc-500 py-4 hover:text-white">Cancel</button>
-                          </div>
+                          )}
                       </div>
                   ) : (
                       /* Sales Content */
