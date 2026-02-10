@@ -90,7 +90,7 @@ const AdminProducts: React.FC = () => {
         currency: d.currency,
         interval: d.interval,
         thumbnailUrl: d.thumbnail_url,
-        isActive: d.is_active,
+        isActive: d.is_active ?? true,
       } as Product)));
 
       const planData = await getPlans();
@@ -378,7 +378,7 @@ const AdminProducts: React.FC = () => {
   };
 
   const handleToggleActive = (product: Product) => {
-    const isDeactivating = product.isActive;
+    const isDeactivating = product.isActive !== false;
     const isSubscription = product.interval && product.interval !== 'onetime';
 
     if (isDeactivating) {
