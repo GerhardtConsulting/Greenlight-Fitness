@@ -306,7 +306,7 @@ const AthleteDashboard: React.FC = () => {
       {/* Greeting */}
       <div className="px-4 pt-4 pb-1">
         <h1 className="text-2xl font-bold text-white">
-          Hallo{userProfile?.firstName ? `, ${userProfile.firstName}` : ''} <span className="inline-block animate-in fade-in">👋</span>
+          Hallo{userProfile?.firstName ? `, ${userProfile.firstName}` : userProfile?.displayName ? `, ${userProfile.displayName}` : userProfile?.nickname ? `, ${userProfile.nickname}` : userProfile?.email ? `, ${userProfile.email.split('@')[0]}` : ''} <span className="inline-block animate-in fade-in">👋</span>
         </h1>
       </div>
 
