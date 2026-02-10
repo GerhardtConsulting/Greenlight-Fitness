@@ -10,11 +10,9 @@ import {
   Calendar,
   Dumbbell,
   Moon,
-  Battery,
   Heart,
   Activity,
   ChevronRight,
-  Plus,
   BarChart3,
   Zap,
   Bookmark,
@@ -39,7 +37,6 @@ interface WeeklyStats {
 interface DailyWellness {
   date: string;
   sleepQuality: number;
-  sleepHours: number;
   energyLevel: number;
   stressLevel: number;
   muscleSoreness: number;
@@ -73,7 +70,6 @@ const AthleteDashboard: React.FC = () => {
   const [personalBests, setPersonalBests] = useState<ExercisePB[]>([]);
   const [volumeData, setVolumeData] = useState<VolumeData[]>([]);
   const [todayWellness, setTodayWellness] = useState<DailyWellness | null>(null);
-  const [showWellnessModal, setShowWellnessModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [currentStreak, setCurrentStreak] = useState(0);
   const [hasPremium, setHasPremium] = useState(false);
@@ -118,9 +114,9 @@ const AthleteDashboard: React.FC = () => {
         })));
       }
 
-      // Load wellness data
+      // Load wellness data from unified check_ins
       const { data: wellnessRaw } = await supabase
-        .from('daily_wellness')
+        .from('check_ins')
         .select('*')
         .eq('athlete_id', user.id)
         .gte('date', thirtyDaysAgo)
@@ -129,12 +125,11 @@ const AthleteDashboard: React.FC = () => {
       if (wellnessRaw) {
         const mapped = wellnessRaw.map(w => ({
           date: w.date,
-          sleepQuality: w.sleep_quality || 0,
-          sleepHours: w.sleep_hours || 0,
-          energyLevel: w.energy_level || 0,
-          stressLevel: w.stress_level || 0,
+          sleepQuality: w.sleep_rating || 0,
+          energyLevel: w.energy_rating || 0,
+          stressLevel: w.stress_rating || 0,
           muscleSoreness: w.muscle_soreness || 0,
-          mood: w.mood || 0
+          mood: w.mood_rating || 0
         }));
         setWellnessData(mapped);
         
@@ -238,35 +233,6 @@ const AthleteDashboard: React.FC = () => {
     };
   }, [weeklyStats, volumeData, wellnessData, personalBests]);
 
-  // Wellness form state
-  const [wellnessForm, setWellnessForm] = useState({
-    sleepQuality: 3,
-    sleepHours: 7,
-    energyLevel: 3,
-    stressLevel: 3,
-    muscleSoreness: 3,
-    mood: 3
-  });
-
-  const saveWellness = async () => {
-    if (!user) return;
-    
-    const today = new Date().toISOString().split('T')[0];
-    
-    await supabase.from('daily_wellness').upsert({
-      athlete_id: user.id,
-      date: today,
-      sleep_quality: wellnessForm.sleepQuality,
-      sleep_hours: wellnessForm.sleepHours,
-      energy_level: wellnessForm.energyLevel,
-      stress_level: wellnessForm.stressLevel,
-      muscle_soreness: wellnessForm.muscleSoreness,
-      mood: wellnessForm.mood
-    }, { onConflict: 'athlete_id,date' });
-    
-    setShowWellnessModal(false);
-    loadDashboardData();
-  };
 
   // Mini bar chart component
   const MiniBarChart: React.FC<{ data: number[]; color: string; height?: number }> = ({ data, color, height = 40 }) => {
@@ -356,99 +322,73 @@ const AthleteDashboard: React.FC = () => {
         <BodyTracker />
       </div>
 
-      {/* Weekly Check-In Widget */}
+      {/* Daily Check-In Widget (unified: wellness + check-in) */}
       <div className="px-4 mt-4">
-        <CheckInForm />
+        <CheckInForm onComplete={loadDashboardData} />
       </div>
 
-      {/* Daily Wellness Card - Premium Style with Week Chart */}
-      <div className="px-4 mt-4">
-        <div className="bg-gradient-to-r from-purple-500/10 to-transparent border border-purple-500/20 rounded-2xl p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center">
-                <Heart size={24} className="text-purple-500" />
+      {/* Wellness Trend Chart */}
+      {wellnessData.length > 0 && (
+        <div className="px-4 mt-4">
+          <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-8 h-8 bg-purple-500/10 rounded-lg flex items-center justify-center">
+                <Heart size={16} className="text-purple-400" />
               </div>
               <div>
-                <p className="text-white font-bold">Daily Wellness</p>
-                <p className="text-sm text-zinc-400">
-                  {todayWellness ? 'Heute eingetragen' : 'Wie fühlst du dich heute?'}
-                </p>
+                <p className="text-white font-bold text-sm">Wellness-Trend</p>
+                <p className="text-[10px] text-zinc-500">Letzte 7 Tage</p>
               </div>
             </div>
-            {!todayWellness ? (
-              <button 
-                onClick={() => setShowWellnessModal(true)}
-                className="px-4 py-2 bg-purple-500 text-white font-bold rounded-xl text-sm flex items-center shadow-[0_0_15px_rgba(168,85,247,0.3)] hover:shadow-[0_0_20px_rgba(168,85,247,0.5)] transition-all"
-              >
-                <Plus size={16} className="mr-1" /> Eintragen
-              </button>
-            ) : (
-              <button 
-                onClick={() => setShowWellnessModal(true)}
-                className="p-2 bg-purple-500/20 border border-purple-500/30 rounded-xl text-purple-400 hover:bg-purple-500/30 transition-all"
-              >
-                <Plus size={16} />
-              </button>
+            <div className="flex items-end gap-1 h-16">
+              {(() => {
+                const last7Days = [];
+                for (let i = 6; i >= 0; i--) {
+                  const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+                  const dayData = wellnessData.find(w => w.date === date);
+                  const avgScore = dayData 
+                    ? Math.round(((dayData.sleepQuality + dayData.energyLevel + dayData.mood + (6 - dayData.stressLevel)) / 4) * 20)
+                    : 0;
+                  last7Days.push({ date, score: avgScore, hasData: !!dayData });
+                }
+                const maxScore = Math.max(...last7Days.map(d => d.score), 1);
+                
+                return last7Days.map((day, idx) => (
+                  <div key={idx} className="flex-1 flex flex-col items-center gap-1">
+                    <div 
+                      className={`w-full rounded-t transition-all ${day.hasData ? 'bg-[#00FF00]' : 'bg-zinc-800'}`}
+                      style={{ height: `${day.hasData ? (day.score / maxScore) * 100 : 10}%`, minHeight: '4px' }}
+                    />
+                    <span className="text-[9px] text-zinc-600">
+                      {['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][new Date(day.date).getDay()]}
+                    </span>
+                  </div>
+                ));
+              })()}
+            </div>
+
+            {todayWellness && (
+              <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-zinc-800">
+                <div className="text-center">
+                  <Moon size={14} className="mx-auto text-blue-400 mb-1" />
+                  <p className="text-[10px] text-zinc-500">Schlaf</p>
+                  <WellnessDots value={todayWellness.sleepQuality} />
+                </div>
+                <div className="text-center">
+                  <Zap size={14} className="mx-auto text-yellow-400 mb-1" />
+                  <p className="text-[10px] text-zinc-500">Energie</p>
+                  <WellnessDots value={todayWellness.energyLevel} />
+                </div>
+                <div className="text-center">
+                  <Heart size={14} className="mx-auto text-pink-400 mb-1" />
+                  <p className="text-[10px] text-zinc-500">Stimmung</p>
+                  <WellnessDots value={todayWellness.mood} />
+                </div>
+              </div>
             )}
           </div>
-
-          {/* Wellness Week Chart */}
-          {wellnessData.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-purple-500/10">
-              <p className="text-xs text-zinc-500 mb-2">Letzte 7 Tage</p>
-              <div className="flex items-end gap-1 h-16">
-                {(() => {
-                  // Get last 7 days of wellness data
-                  const last7Days = [];
-                  for (let i = 6; i >= 0; i--) {
-                    const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-                    const dayData = wellnessData.find(w => w.date === date);
-                    const avgScore = dayData 
-                      ? Math.round(((dayData.sleepQuality + dayData.energyLevel + dayData.mood + (6 - dayData.stressLevel)) / 4) * 20)
-                      : 0;
-                    last7Days.push({ date, score: avgScore, hasData: !!dayData });
-                  }
-                  const maxScore = Math.max(...last7Days.map(d => d.score), 1);
-                  
-                  return last7Days.map((day, idx) => (
-                    <div key={idx} className="flex-1 flex flex-col items-center gap-1">
-                      <div 
-                        className={`w-full rounded-t transition-all ${day.hasData ? 'bg-purple-500' : 'bg-zinc-800'}`}
-                        style={{ height: `${day.hasData ? (day.score / maxScore) * 100 : 10}%`, minHeight: '4px' }}
-                      />
-                      <span className="text-[9px] text-zinc-600">
-                        {['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][new Date(day.date).getDay()]}
-                      </span>
-                    </div>
-                  ));
-                })()}
-              </div>
-            </div>
-          )}
-
-          {/* Today's Wellness Details */}
-          {todayWellness && (
-            <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-purple-500/10">
-              <div className="text-center">
-                <Moon size={14} className="mx-auto text-blue-400 mb-1" />
-                <p className="text-[10px] text-zinc-500">Schlaf</p>
-                <WellnessDots value={todayWellness.sleepQuality} />
-              </div>
-              <div className="text-center">
-                <Battery size={14} className="mx-auto text-yellow-400 mb-1" />
-                <p className="text-[10px] text-zinc-500">Energie</p>
-                <WellnessDots value={todayWellness.energyLevel} />
-              </div>
-              <div className="text-center">
-                <Activity size={14} className="mx-auto text-red-400 mb-1" />
-                <p className="text-[10px] text-zinc-500">Muskelkater</p>
-                <WellnessDots value={6 - todayWellness.muscleSoreness} />
-              </div>
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
       {/* Volume Chart - Premium Feature - Premium Style */}
       <div className="px-4 mt-4">
@@ -576,133 +516,6 @@ const AthleteDashboard: React.FC = () => {
       <div className="px-4 mt-4 mb-8">
         <MyCoach />
       </div>
-
-      {/* Wellness Modal */}
-      {showWellnessModal && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4">
-          <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl w-full max-w-md p-6">
-            <h3 className="text-xl font-bold mb-4">Wie fühlst du dich heute?</h3>
-            
-            <div className="space-y-4">
-              {/* Sleep Quality */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-zinc-400 flex items-center gap-2">
-                    <Moon size={14} /> Schlafqualität
-                  </span>
-                  <span className="text-sm font-bold">{wellnessForm.sleepQuality}/5</span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={5}
-                  value={wellnessForm.sleepQuality}
-                  onChange={(e) => setWellnessForm(prev => ({ ...prev, sleepQuality: parseInt(e.target.value) }))}
-                  className="w-full accent-[#00FF00]"
-                />
-              </div>
-
-              {/* Sleep Hours */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-zinc-400">Schlafstunden</span>
-                  <span className="text-sm font-bold">{wellnessForm.sleepHours}h</span>
-                </div>
-                <input
-                  type="range"
-                  min={4}
-                  max={12}
-                  step={0.5}
-                  value={wellnessForm.sleepHours}
-                  onChange={(e) => setWellnessForm(prev => ({ ...prev, sleepHours: parseFloat(e.target.value) }))}
-                  className="w-full accent-[#00FF00]"
-                />
-              </div>
-
-              {/* Energy Level */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-zinc-400 flex items-center gap-2">
-                    <Battery size={14} /> Energielevel
-                  </span>
-                  <span className="text-sm font-bold">{wellnessForm.energyLevel}/5</span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={5}
-                  value={wellnessForm.energyLevel}
-                  onChange={(e) => setWellnessForm(prev => ({ ...prev, energyLevel: parseInt(e.target.value) }))}
-                  className="w-full accent-[#00FF00]"
-                />
-              </div>
-
-              {/* Stress Level */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-zinc-400 flex items-center gap-2">
-                    <Activity size={14} /> Stresslevel
-                  </span>
-                  <span className="text-sm font-bold">{wellnessForm.stressLevel}/5</span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={5}
-                  value={wellnessForm.stressLevel}
-                  onChange={(e) => setWellnessForm(prev => ({ ...prev, stressLevel: parseInt(e.target.value) }))}
-                  className="w-full accent-[#00FF00]"
-                />
-              </div>
-
-              {/* Muscle Soreness */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-zinc-400 flex items-center gap-2">
-                    <Dumbbell size={14} /> Muskelkater
-                  </span>
-                  <span className="text-sm font-bold">{wellnessForm.muscleSoreness}/5</span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={5}
-                  value={wellnessForm.muscleSoreness}
-                  onChange={(e) => setWellnessForm(prev => ({ ...prev, muscleSoreness: parseInt(e.target.value) }))}
-                  className="w-full accent-[#00FF00]"
-                />
-              </div>
-
-              {/* Mood */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-zinc-400 flex items-center gap-2">
-                    <Heart size={14} /> Stimmung
-                  </span>
-                  <span className="text-sm font-bold">{wellnessForm.mood}/5</span>
-                </div>
-                <input
-                  type="range"
-                  min={1}
-                  max={5}
-                  value={wellnessForm.mood}
-                  onChange={(e) => setWellnessForm(prev => ({ ...prev, mood: parseInt(e.target.value) }))}
-                  className="w-full accent-[#00FF00]"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <Button variant="secondary" fullWidth onClick={() => setShowWellnessModal(false)}>
-                Abbrechen
-              </Button>
-              <Button variant="primary" fullWidth onClick={saveWellness}>
-                Speichern
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Premium Feature Modal */}
       {showPremiumModal && (

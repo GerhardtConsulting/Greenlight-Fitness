@@ -468,7 +468,7 @@ export interface WorkoutFeedback {
   createdAt: any;
 }
 
-// --- CHECK-INS (Wöchentliche Athleten Check-Ins) ---
+// --- CHECK-INS (Tägliche Athleten Check-Ins — vereinheitlicht) ---
 
 export type CheckInStatus = 'SUBMITTED' | 'REVIEWED';
 
@@ -476,13 +476,15 @@ export interface CheckIn {
   id: string;
   athleteId: string;
   coachId?: string;
-  weekStart: string;
+  date: string;
   weight?: number;
   bodyFat?: number;
   nutritionRating?: number;
   sleepRating?: number;
   stressRating?: number;
   energyRating?: number;
+  moodRating?: number;
+  muscleSoreness?: number;
   notes?: string;
   coachResponse?: string;
   photoUrls?: string[];

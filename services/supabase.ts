@@ -2271,7 +2271,7 @@ export const getCheckIns = async (athleteId?: string, coachId?: string, status?:
   if (athleteId) query = query.eq('athlete_id', athleteId);
   if (coachId) query = query.eq('coach_id', coachId);
   if (status) query = query.eq('status', status);
-  const { data, error } = await query.order('week_start', { ascending: false });
+  const { data, error } = await query.order('date', { ascending: false });
   if (error) throw error;
   return data || [];
 };
@@ -2279,19 +2279,21 @@ export const getCheckIns = async (athleteId?: string, coachId?: string, status?:
 export const createCheckIn = async (checkIn: {
   athlete_id: string;
   coach_id?: string;
-  week_start: string;
+  date: string;
   weight?: number;
   body_fat?: number;
   nutrition_rating?: number;
   sleep_rating?: number;
   stress_rating?: number;
   energy_rating?: number;
+  mood_rating?: number;
+  muscle_soreness?: number;
   notes?: string;
   photo_urls?: string[];
 }) => {
   const { data, error } = await supabase
     .from('check_ins')
-    .upsert(checkIn, { onConflict: 'athlete_id,week_start' })
+    .upsert(checkIn, { onConflict: 'athlete_id,date' })
     .select()
     .single();
   if (error) throw error;

@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { createCheckIn, getCheckIns, getAthleteCoachRelationship, uploadFile, getPublicUrl } from '../services/supabase';
-import { ClipboardCheck, Camera, Scale, Moon, Battery, Brain, Zap, Send, Loader2, Check, ChevronDown, ChevronUp, MessageSquare, X } from 'lucide-react';
+import { 
+  ClipboardCheck, Camera, Scale, Moon, Brain, Zap, Send, Loader2, Check, 
+  ChevronDown, ChevronUp, MessageSquare, X, Sun, Heart, Dumbbell
+} from 'lucide-react';
 
 interface CheckInFormProps {
   onComplete?: () => void;
@@ -11,24 +14,31 @@ interface CheckInFormProps {
 const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, compact = false }) => {
   const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
+  const [showExtras, setShowExtras] = useState(false);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [coachId, setCoachId] = useState<string | null>(null);
 
-  // Form fields
+  // Core daily ratings
+  const [sleepRating, setSleepRating] = useState(0);
+  const [energyRating, setEnergyRating] = useState(0);
+  const [stressRating, setStressRating] = useState(0);
+  const [moodRating, setMoodRating] = useState(0);
+  const [muscleSoreness, setMuscleSoreness] = useState(0);
+
+  // Extended fields (optional, expandable)
   const [weight, setWeight] = useState('');
   const [bodyFat, setBodyFat] = useState('');
   const [nutritionRating, setNutritionRating] = useState(0);
-  const [sleepRating, setSleepRating] = useState(0);
-  const [stressRating, setStressRating] = useState(0);
-  const [energyRating, setEnergyRating] = useState(0);
   const [notes, setNotes] = useState('');
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
 
-  // Check if already submitted this week
+  // Check if already submitted today
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
   const [lastCheckIn, setLastCheckIn] = useState<any>(null);
+
+  const getToday = () => new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     if (user) {
@@ -37,20 +47,12 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, compact = false }
     }
   }, [user]);
 
-  const getWeekStart = () => {
-    const now = new Date();
-    const day = now.getDay();
-    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(now.setDate(diff));
-    return monday.toISOString().split('T')[0];
-  };
-
   const checkExisting = async () => {
     if (!user) return;
     try {
       const checkIns = await getCheckIns(user.id);
-      const weekStart = getWeekStart();
-      const existing = checkIns.find((ci: any) => ci.week_start === weekStart);
+      const today = getToday();
+      const existing = checkIns.find((ci: any) => ci.date === today);
       if (existing) {
         setAlreadySubmitted(true);
         setLastCheckIn(existing);
@@ -65,57 +67,48 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, compact = false }
     try {
       const rel = await getAthleteCoachRelationship(user.id);
       if (rel) setCoachId(rel.coach_id);
-    } catch (e) {
-      // No coach assigned
-    }
+    } catch (e) { /* No coach assigned */ }
   };
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length + photos.length > 4) {
-      alert('Maximal 4 Fotos erlaubt.');
-      return;
-    }
+    if (files.length + photos.length > 4) { alert('Maximal 4 Fotos erlaubt.'); return; }
     setPhotos(prev => [...prev, ...files]);
-    // Create preview URLs
     files.forEach(file => {
-      const url = URL.createObjectURL(file);
-      setPhotoPreviewUrls(prev => [...prev, url]);
+      setPhotoPreviewUrls(prev => [...prev, URL.createObjectURL(file)]);
     });
   };
 
   const removePhoto = (index: number) => {
     setPhotos(prev => prev.filter((_, i) => i !== index));
-    setPhotoPreviewUrls(prev => {
-      URL.revokeObjectURL(prev[index]);
-      return prev.filter((_, i) => i !== index);
-    });
+    setPhotoPreviewUrls(prev => { URL.revokeObjectURL(prev[index]); return prev.filter((_, i) => i !== index); });
   };
 
-  const handleSubmit = async () => {
-    if (!user) return;
-    setSaving(true);
+  const hasAnyRating = sleepRating > 0 || energyRating > 0 || stressRating > 0 || moodRating > 0 || muscleSoreness > 0;
 
+  const handleSubmit = async () => {
+    if (!user || !hasAnyRating) return;
+    setSaving(true);
     try {
-      // Upload photos if any
       const photoUrls: string[] = [];
       for (const photo of photos) {
         const path = `check-ins/${user.id}/${Date.now()}-${photo.name}`;
         await uploadFile('check-in-photos', path, photo);
-        const url = getPublicUrl('check-in-photos', path);
-        photoUrls.push(url);
+        photoUrls.push(getPublicUrl('check-in-photos', path));
       }
 
       await createCheckIn({
         athlete_id: user.id,
         coach_id: coachId || undefined,
-        week_start: getWeekStart(),
+        date: getToday(),
+        sleep_rating: sleepRating || undefined,
+        energy_rating: energyRating || undefined,
+        stress_rating: stressRating || undefined,
+        mood_rating: moodRating || undefined,
+        muscle_soreness: muscleSoreness || undefined,
+        nutrition_rating: nutritionRating || undefined,
         weight: weight ? parseFloat(weight) : undefined,
         body_fat: bodyFat ? parseFloat(bodyFat) : undefined,
-        nutrition_rating: nutritionRating || undefined,
-        sleep_rating: sleepRating || undefined,
-        stress_rating: stressRating || undefined,
-        energy_rating: energyRating || undefined,
         notes: notes.trim() || undefined,
         photo_urls: photoUrls.length > 0 ? photoUrls : undefined,
       });
@@ -123,8 +116,6 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, compact = false }
       setSubmitted(true);
       setAlreadySubmitted(true);
       onComplete?.();
-
-      // Clean up preview URLs
       photoPreviewUrls.forEach(url => URL.revokeObjectURL(url));
     } catch (e) {
       console.error('Error submitting check-in:', e);
@@ -134,59 +125,55 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, compact = false }
     }
   };
 
-  // Rating selector component
-  const RatingSelector: React.FC<{
+  // Compact emoji rating selector
+  const EmojiRating: React.FC<{
     value: number;
     onChange: (v: number) => void;
     icon: React.ReactNode;
     label: string;
-    lowLabel?: string;
-    highLabel?: string;
-  }> = ({ value, onChange, icon, label, lowLabel = 'Schlecht', highLabel = 'Super' }) => (
-    <div>
-      <div className="flex items-center gap-2 mb-1.5">
-        {icon}
-        <span className="text-xs text-zinc-400 font-medium">{label}</span>
-      </div>
-      <div className="flex gap-1">
+    colors: string[];
+  }> = ({ value, onChange, icon, label, colors }) => (
+    <div className="flex items-center gap-2">
+      <div className="w-7 shrink-0 flex justify-center">{icon}</div>
+      <span className="text-[10px] text-zinc-500 font-medium w-16 shrink-0">{label}</span>
+      <div className="flex gap-1 flex-1">
         {[1, 2, 3, 4, 5].map(v => (
           <button
             key={v}
             onClick={() => onChange(value === v ? 0 : v)}
-            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
               v <= value
-                ? 'bg-[#00FF00] text-black'
-                : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700'
+                ? `${colors[Math.min(v - 1, colors.length - 1)]} text-black`
+                : 'bg-zinc-800/80 text-zinc-600 hover:bg-zinc-700/80'
             }`}
           >
             {v}
           </button>
         ))}
       </div>
-      <div className="flex justify-between mt-0.5">
-        <span className="text-[9px] text-zinc-600">{lowLabel}</span>
-        <span className="text-[9px] text-zinc-600">{highLabel}</span>
-      </div>
     </div>
   );
 
-  // Already submitted state
+  const greenScale = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-lime-500', 'bg-[#00FF00]'];
+  const reverseScale = ['bg-[#00FF00]', 'bg-lime-500', 'bg-yellow-500', 'bg-orange-500', 'bg-red-500'];
+
+  // Already submitted today
   if (alreadySubmitted && !expanded) {
     return (
       <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl overflow-hidden">
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => setExpanded(true)}
           className="w-full p-4 flex items-center justify-between hover:bg-zinc-800/30 transition-colors"
         >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#00FF00]/10 flex items-center justify-center">
-              <ClipboardCheck size={20} className="text-[#00FF00]" />
+              <Sun size={20} className="text-[#00FF00]" />
             </div>
             <div className="text-left">
-              <p className="text-white font-bold text-sm">Wöchentlicher Check-In</p>
+              <p className="text-white font-bold text-sm">Täglicher Check-In</p>
               <p className="text-[#00FF00] text-xs flex items-center gap-1">
                 <Check size={12} />
-                {submitted ? 'Gerade eingereicht!' : 'Bereits eingereicht'}
+                {submitted ? 'Gerade eingereicht!' : 'Heute erledigt'}
                 {lastCheckIn?.status === 'REVIEWED' && (
                   <span className="text-blue-400 ml-1 flex items-center gap-0.5">
                     <MessageSquare size={10} /> Coach hat geantwortet
@@ -195,10 +182,8 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, compact = false }
               </p>
             </div>
           </div>
-          {expanded ? <ChevronUp size={16} className="text-zinc-500" /> : <ChevronDown size={16} className="text-zinc-500" />}
+          <ChevronDown size={16} className="text-zinc-500" />
         </button>
-
-        {/* Show coach response if reviewed */}
         {lastCheckIn?.coach_response && (
           <div className="px-4 pb-3 border-t border-zinc-800">
             <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-3 mt-2">
@@ -219,12 +204,14 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, compact = false }
         className="w-full p-4 flex items-center justify-between hover:bg-zinc-800/30 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center">
-            <ClipboardCheck size={20} className="text-orange-400" />
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${alreadySubmitted ? 'bg-[#00FF00]/10' : 'bg-amber-500/10'}`}>
+            <Sun size={20} className={alreadySubmitted ? 'text-[#00FF00]' : 'text-amber-400'} />
           </div>
           <div className="text-left">
-            <p className="text-white font-bold text-sm">Wöchentlicher Check-In</p>
-            <p className="text-orange-400 text-xs">Noch nicht eingereicht</p>
+            <p className="text-white font-bold text-sm">Täglicher Check-In</p>
+            <p className={`text-xs ${alreadySubmitted ? 'text-[#00FF00]' : 'text-amber-400'}`}>
+              {alreadySubmitted ? '✓ Heute erledigt' : 'Wie fühlst du dich heute? (30 Sek.)'}
+            </p>
           </div>
         </div>
         {expanded ? <ChevronUp size={16} className="text-zinc-500" /> : <ChevronDown size={16} className="text-zinc-500" />}
@@ -232,105 +219,87 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, compact = false }
 
       {/* Form */}
       {expanded && (
-        <div className="px-4 pb-4 space-y-4 border-t border-zinc-800 pt-3 animate-in fade-in slide-in-from-top-2">
-          {/* Body Metrics */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">Gewicht (kg)</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={weight}
-                onChange={e => setWeight(e.target.value)}
-                placeholder="80.0"
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-xl px-3 py-2.5 text-sm text-center focus:border-[#00FF00] outline-none"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">Körperfett (%)</label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={bodyFat}
-                onChange={e => setBodyFat(e.target.value)}
-                placeholder="15.0"
-                className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-xl px-3 py-2.5 text-sm text-center focus:border-[#00FF00] outline-none"
-              />
-            </div>
+        <div className="px-4 pb-4 space-y-4 border-t border-zinc-800 pt-3">
+          {/* Core Ratings — always visible, quick to fill */}
+          <div className="space-y-2">
+            <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">Wellness-Check</p>
+            <EmojiRating value={sleepRating} onChange={setSleepRating}
+              icon={<Moon size={14} className="text-blue-400" />} label="Schlaf" colors={greenScale} />
+            <EmojiRating value={energyRating} onChange={setEnergyRating}
+              icon={<Zap size={14} className="text-yellow-400" />} label="Energie" colors={greenScale} />
+            <EmojiRating value={moodRating} onChange={setMoodRating}
+              icon={<Heart size={14} className="text-pink-400" />} label="Stimmung" colors={greenScale} />
+            <EmojiRating value={stressRating} onChange={setStressRating}
+              icon={<Brain size={14} className="text-red-400" />} label="Stress" colors={reverseScale} />
+            <EmojiRating value={muscleSoreness} onChange={setMuscleSoreness}
+              icon={<Dumbbell size={14} className="text-purple-400" />} label="Muskelkater" colors={reverseScale} />
           </div>
 
-          {/* Ratings */}
-          <div className="space-y-3">
-            <RatingSelector
-              value={nutritionRating}
-              onChange={setNutritionRating}
-              icon={<Scale size={14} className="text-green-400" />}
-              label="Ernährung"
-              lowLabel="Schlecht"
-              highLabel="Perfekt"
-            />
-            <RatingSelector
-              value={sleepRating}
-              onChange={setSleepRating}
-              icon={<Moon size={14} className="text-blue-400" />}
-              label="Schlaf"
-            />
-            <RatingSelector
-              value={stressRating}
-              onChange={setStressRating}
-              icon={<Brain size={14} className="text-red-400" />}
-              label="Stress"
-              lowLabel="Viel Stress"
-              highLabel="Kein Stress"
-            />
-            <RatingSelector
-              value={energyRating}
-              onChange={setEnergyRating}
-              icon={<Zap size={14} className="text-yellow-400" />}
-              label="Energie"
-            />
-          </div>
+          {/* Expandable Extra Section */}
+          <button
+            type="button"
+            onClick={() => setShowExtras(!showExtras)}
+            className="w-full text-center text-xs text-zinc-500 hover:text-zinc-300 transition-colors py-1 flex items-center justify-center gap-1"
+          >
+            {showExtras ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            {showExtras ? 'Weniger anzeigen' : 'Körperdaten, Notizen & Fotos hinzufügen'}
+          </button>
 
-          {/* Notes */}
-          <div>
-            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">Notizen / Fragen an Coach</label>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Wie war deine Woche? Gibt es etwas, das dein Coach wissen sollte?"
-              rows={3}
-              className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-xl px-3 py-2.5 text-sm focus:border-[#00FF00] outline-none resize-none"
-            />
-          </div>
-
-          {/* Photo Upload */}
-          <div>
-            <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">Fortschrittsfotos (optional, max. 4)</label>
-            <div className="flex gap-2 flex-wrap">
-              {photoPreviewUrls.map((url, i) => (
-                <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-zinc-700">
-                  <img src={url} alt="" className="w-full h-full object-cover" />
-                  <button
-                    onClick={() => removePhoto(i)}
-                    className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center"
-                  >
-                    <X size={8} className="text-white" />
-                  </button>
+          {showExtras && (
+            <div className="space-y-3 animate-in fade-in slide-in-from-top-2">
+              {/* Body Metrics */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">Gewicht (kg)</label>
+                  <input type="text" inputMode="decimal" value={weight} onChange={e => setWeight(e.target.value)}
+                    placeholder="80.0" className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-xl px-3 py-2.5 text-sm text-center focus:border-[#00FF00] outline-none" />
                 </div>
-              ))}
-              {photos.length < 4 && (
-                <label className="w-16 h-16 rounded-lg border-2 border-dashed border-zinc-700 flex items-center justify-center cursor-pointer hover:border-[#00FF00] transition-colors">
-                  <Camera size={18} className="text-zinc-500" />
-                  <input type="file" accept="image/*" onChange={handlePhotoSelect} className="hidden" multiple />
-                </label>
-              )}
+                <div>
+                  <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">Körperfett (%)</label>
+                  <input type="text" inputMode="decimal" value={bodyFat} onChange={e => setBodyFat(e.target.value)}
+                    placeholder="15.0" className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-xl px-3 py-2.5 text-sm text-center focus:border-[#00FF00] outline-none" />
+                </div>
+              </div>
+
+              {/* Nutrition */}
+              <EmojiRating value={nutritionRating} onChange={setNutritionRating}
+                icon={<Scale size={14} className="text-green-400" />} label="Ernährung" colors={greenScale} />
+
+              {/* Notes */}
+              <div>
+                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">Notizen an Coach</label>
+                <textarea value={notes} onChange={e => setNotes(e.target.value)}
+                  placeholder="Wie fühlst du dich? Gibt es etwas, das dein Coach wissen sollte?"
+                  rows={2} className="w-full bg-zinc-800 border border-zinc-700 text-white rounded-xl px-3 py-2.5 text-sm focus:border-[#00FF00] outline-none resize-none" />
+              </div>
+
+              {/* Photo Upload */}
+              <div>
+                <label className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block mb-1">Fotos (optional, max. 4)</label>
+                <div className="flex gap-2 flex-wrap">
+                  {photoPreviewUrls.map((url, i) => (
+                    <div key={i} className="relative w-14 h-14 rounded-lg overflow-hidden border border-zinc-700">
+                      <img src={url} alt="" className="w-full h-full object-cover" />
+                      <button onClick={() => removePhoto(i)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
+                        <X size={8} className="text-white" />
+                      </button>
+                    </div>
+                  ))}
+                  {photos.length < 4 && (
+                    <label className="w-14 h-14 rounded-lg border-2 border-dashed border-zinc-700 flex items-center justify-center cursor-pointer hover:border-[#00FF00] transition-colors">
+                      <Camera size={16} className="text-zinc-500" />
+                      <input type="file" accept="image/*" onChange={handlePhotoSelect} className="hidden" multiple />
+                    </label>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Submit */}
           <button
             onClick={handleSubmit}
-            disabled={saving}
+            disabled={saving || !hasAnyRating}
             className="w-full py-3 bg-[#00FF00] text-black rounded-xl font-bold text-sm hover:bg-[#00FF00]/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {saving ? (
@@ -338,7 +307,7 @@ const CheckInForm: React.FC<CheckInFormProps> = ({ onComplete, compact = false }
             ) : (
               <>
                 <Send size={16} />
-                Check-In einreichen
+                Check-In speichern
               </>
             )}
           </button>
