@@ -95,6 +95,10 @@ const AdminProducts: React.FC = () => {
         thumbnailUrl: d.thumbnail_url,
         isActive: d.is_active ?? true,
         trialDays: d.trial_days || 0,
+        hasChatAccess: d.has_chat_access ?? false,
+        calendar_id: d.calendar_id || null,
+        stripeProductId: d.stripe_product_id || null,
+        stripePriceId: d.stripe_price_id || null,
       } as Product)));
 
       const planData = await getPlans();
@@ -142,15 +146,33 @@ const AdminProducts: React.FC = () => {
     setViewMode('create');
   };
 
-  const handleEdit = (product: any) => {
+  const handleEdit = async (product: any) => {
     setEditingProduct(product);
-    setFormData(product);
+    setFormData({ ...product, selectedPlanIds: [] });
+    setViewMode('edit');
+
+    // Load product_plans (which plans are assigned)
+    try {
+      const { data: ppData } = await supabase
+        .from('product_plans')
+        .select('plan_id')
+        .eq('product_id', product.id)
+        .order('sort_order', { ascending: true });
+      const planIds = (ppData || []).map((pp: any) => pp.plan_id);
+      setFormData(prev => ({ ...prev, selectedPlanIds: planIds.length > 0 ? planIds : (product.planId ? [product.planId] : []) }));
+    } catch {
+      // Fallback to single planId
+      if (product.planId) setFormData(prev => ({ ...prev, selectedPlanIds: [product.planId] }));
+    }
+
     // Load multi-calendar assignments
-    getProductCalendars(product.id).then(pcs => {
+    try {
+      const pcs = await getProductCalendars(product.id);
       const ids = pcs.map((pc: any) => pc.calendar_id);
       setSelectedCalendarIds(ids.length > 0 ? ids : product.calendar_id ? [product.calendar_id] : []);
-    }).catch(() => setSelectedCalendarIds(product.calendar_id ? [product.calendar_id] : []));
-    setViewMode('edit');
+    } catch {
+      setSelectedCalendarIds(product.calendar_id ? [product.calendar_id] : []);
+    }
   };
 
   const handleBack = () => {
