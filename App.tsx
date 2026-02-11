@@ -93,6 +93,7 @@ const App: React.FC = () => {
             <Route path="/legal/imprint" element={<Legal />} />
             <Route path="/legal/privacy" element={<Legal />} />
             <Route path="/legal/terms" element={<Legal />} />
+            <Route path="/legal/transparency" element={<Legal />} />
             
             <Route element={<Layout />}>
               <Route element={<ProtectedRoute />}>
