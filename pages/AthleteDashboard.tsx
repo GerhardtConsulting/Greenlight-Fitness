@@ -275,10 +275,10 @@ const AthleteDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white pb-24">
+    <div className="bg-black text-white pb-24 md:pb-8">
       {/* Greeting */}
       <div className="px-4 pt-4 pb-1">
-        <h1 className="text-2xl font-bold text-white">
+        <h1 className="text-2xl md:text-3xl font-bold text-white">
           Hallo{userProfile?.firstName ? `, ${userProfile.firstName}` : userProfile?.displayName ? `, ${userProfile.displayName}` : userProfile?.nickname ? `, ${userProfile.nickname}` : userProfile?.email ? `, ${userProfile.email.split('@')[0]}` : ''} <span className="inline-block animate-in fade-in">👋</span>
         </h1>
       </div>
@@ -312,19 +312,22 @@ const AthleteDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Goals Widget - Now at top! */}
-      <div className="px-4 mt-4">
-        <GoalWidget compact />
-      </div>
+      {/* Desktop: 2-column grid for widgets */}
+      <div className="px-4 mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Goals Widget */}
+        <div>
+          <GoalWidget compact />
+        </div>
 
-      {/* Body Tracker Widget */}
-      <div className="px-4 mt-4">
-        <BodyTracker />
-      </div>
+        {/* Body Tracker Widget */}
+        <div>
+          <BodyTracker />
+        </div>
 
-      {/* Daily Check-In Widget (unified: wellness + check-in) */}
-      <div className="px-4 mt-4">
-        <CheckInForm onComplete={loadDashboardData} />
+        {/* Daily Check-In Widget */}
+        <div className="md:col-span-2">
+          <CheckInForm onComplete={loadDashboardData} />
+        </div>
       </div>
 
       {/* Wellness Trend Chart */}
@@ -390,10 +393,13 @@ const AthleteDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Volume & PRs — Desktop: side by side */}
+      <div className="px-4 mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+
       {/* Volume Chart - Premium Feature - Premium Style */}
-      <div className="px-4 mt-4">
+      <div>
         <div 
-          className={`bg-gradient-to-r from-blue-500/10 to-transparent border border-blue-500/20 rounded-2xl p-4 relative ${!hasPremium ? 'cursor-pointer' : ''}`}
+          className={`bg-gradient-to-r from-blue-500/10 to-transparent border border-blue-500/20 rounded-2xl p-4 relative h-full ${!hasPremium ? 'cursor-pointer' : ''}`}
           onClick={() => !hasPremium && setShowPremiumModal(true)}
         >
           <div className="flex items-center justify-between">
@@ -450,9 +456,9 @@ const AthleteDashboard: React.FC = () => {
       </div>
 
       {/* Personal Bests - Premium Feature - Premium Style */}
-      <div className="px-4 mt-4">
+      <div>
         <div 
-          className={`bg-gradient-to-r from-yellow-500/10 to-transparent border border-yellow-500/20 rounded-2xl p-4 ${!hasPremium ? 'cursor-pointer' : ''}`}
+          className={`bg-gradient-to-r from-yellow-500/10 to-transparent border border-yellow-500/20 rounded-2xl p-4 h-full ${!hasPremium ? 'cursor-pointer' : ''}`}
           onClick={() => !hasPremium && setShowPremiumModal(true)}
         >
           <div className="flex items-center justify-between">
@@ -511,6 +517,8 @@ const AthleteDashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      </div>{/* Close Volume & PRs grid */}
 
       {/* My Coach Section - at bottom */}
       <div className="px-4 mt-4 mb-8">
