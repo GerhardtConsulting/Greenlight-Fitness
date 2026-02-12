@@ -96,7 +96,7 @@ const CoachCalendarSetup: React.FC = () => {
   const [availability, setAvailability] = useState<AvailSlot[]>([]);
   const [blockedTimes, setBlockedTimes] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('calendar');
-  const [calView, setCalView] = useState<CalView>('week');
+  const [calView, setCalView] = useState<CalView>(() => typeof window !== 'undefined' && window.innerWidth < 768 ? 'day' : 'week');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,7 +127,8 @@ const CoachCalendarSetup: React.FC = () => {
   const [slugInput, setSlugInput] = useState('');
   const [slugSaving, setSlugSaving] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Current time indicator update
@@ -355,30 +356,31 @@ const CoachCalendarSetup: React.FC = () => {
       {success && <div className="absolute top-4 right-4 z-50 bg-emerald-500/90 text-white px-4 py-2 rounded-lg shadow-lg text-sm flex items-center gap-2 animate-in slide-in-from-top-2"><Check size={14} /> {success}</div>}
 
       {/* ═══ GOOGLE-STYLE TOP BAR ═══ */}
-      <div className="flex items-center gap-4 pb-4 border-b border-zinc-800/50 shrink-0">
+      <div className="flex flex-wrap items-center gap-2 sm:gap-4 pb-3 sm:pb-4 border-b border-zinc-800/50 shrink-0">
+        {/* Row 1: Hamburger, logo, today, nav, date */}
         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-white/5 rounded-full transition-colors">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-400"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
         </button>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 hidden sm:flex">
           <Calendar size={22} className="text-[#4285f4]" />
-          <span className="text-lg font-medium text-white hidden sm:inline">Kalender</span>
+          <span className="text-lg font-medium text-white">Kalender</span>
         </div>
 
-        <button onClick={goToToday} className="px-4 py-1.5 border border-zinc-700 rounded-lg text-sm font-medium text-zinc-300 hover:bg-white/5 transition-colors">
+        <button onClick={goToToday} className="px-3 sm:px-4 py-1.5 border border-zinc-700 rounded-lg text-xs sm:text-sm font-medium text-zinc-300 hover:bg-white/5 transition-colors">
           Heute
         </button>
 
         <div className="flex items-center">
-          <button onClick={() => navigateWeek('prev')} className="p-1.5 hover:bg-white/5 rounded-full transition-colors"><ChevronLeft size={20} className="text-zinc-400" /></button>
-          <button onClick={() => navigateWeek('next')} className="p-1.5 hover:bg-white/5 rounded-full transition-colors"><ChevronRight size={20} className="text-zinc-400" /></button>
+          <button onClick={() => navigateWeek('prev')} className="p-1 sm:p-1.5 hover:bg-white/5 rounded-full transition-colors"><ChevronLeft size={18} className="text-zinc-400" /></button>
+          <button onClick={() => navigateWeek('next')} className="p-1 sm:p-1.5 hover:bg-white/5 rounded-full transition-colors"><ChevronRight size={18} className="text-zinc-400" /></button>
         </div>
 
-        <h1 className="text-xl font-normal text-white">{headerLabel}</h1>
+        <h1 className="text-sm sm:text-xl font-normal text-white truncate max-w-[140px] sm:max-w-none">{headerLabel}</h1>
 
-        <div className="ml-auto flex items-center gap-2">
-          {/* Day / Week Toggle */}
-          <div className="flex border border-zinc-700 rounded-lg overflow-hidden">
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+          {/* Day / Week Toggle — hidden on very small screens since mobile defaults to day */}
+          <div className="hidden sm:flex border border-zinc-700 rounded-lg overflow-hidden">
             <button onClick={() => setCalView('day')} className={`px-3 py-1.5 text-xs font-medium transition-colors ${calView === 'day' ? 'bg-[#4285f4]/20 text-[#4285f4]' : 'text-zinc-400 hover:bg-white/5'}`}>
               <CalendarDays size={14} className="inline mr-1" />Tag
             </button>
@@ -389,23 +391,42 @@ const CoachCalendarSetup: React.FC = () => {
 
           {/* View mode tabs */}
           <div className="flex border border-zinc-700 rounded-lg overflow-hidden">
-            {([['calendar', 'Kalender'], ['availability', 'Zeiten'], ['settings', 'Einstellungen']] as [ViewMode, string][]).map(([key, label]) => (
+            {([['calendar', 'Kalender'], ['availability', 'Zeiten'], ['settings', 'Einst.']] as [ViewMode, string][]).map(([key, label]) => (
               <button key={key} onClick={() => setViewMode(key)}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors ${viewMode === key ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
+                className={`px-2 sm:px-3 py-1.5 text-[10px] sm:text-xs font-medium transition-colors ${viewMode === key ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'}`}
               >{label}</button>
             ))}
           </div>
 
-          <button onClick={() => setShowCreateForm(true)} className="p-2 bg-[#4285f4] text-white rounded-full hover:bg-[#4285f4]/80 transition-colors shadow-lg shadow-blue-500/20">
-            <Plus size={18} />
+          <button onClick={() => setShowCreateForm(true)} className="p-1.5 sm:p-2 bg-[#4285f4] text-white rounded-full hover:bg-[#4285f4]/80 transition-colors shadow-lg shadow-blue-500/20">
+            <Plus size={16} />
           </button>
         </div>
       </div>
 
       {/* ═══ MAIN LAYOUT ═══ */}
       <div className="flex flex-1 overflow-hidden mt-2">
+        {/* ═══ MOBILE SIDEBAR OVERLAY ═══ */}
+        {sidebarOpen && isMobile && (
+          <div className="fixed inset-0 z-40 bg-black/60" onClick={() => setSidebarOpen(false)} />
+        )}
+
         {/* ═══ LEFT SIDEBAR ═══ */}
-        <div className={`shrink-0 transition-all duration-300 overflow-hidden ${sidebarOpen ? 'w-60 pr-4' : 'w-0'}`}>
+        <div className={`shrink-0 transition-all duration-300 overflow-y-auto
+          ${isMobile
+            ? `fixed top-0 left-0 z-50 h-full bg-[#1a1a1a] border-r border-zinc-800 ${sidebarOpen ? 'w-72 p-4' : 'w-0 p-0 overflow-hidden'}`
+            : `${sidebarOpen ? 'w-60 pr-4' : 'w-0 overflow-hidden'}`
+          }`}>
+          {/* Mobile close button */}
+          {isMobile && sidebarOpen && (
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Calendar size={20} className="text-[#4285f4]" />
+                <span className="text-base font-medium text-white">Kalender</span>
+              </div>
+              <button onClick={() => setSidebarOpen(false)} className="p-1.5 hover:bg-white/10 rounded-full"><X size={18} className="text-zinc-400" /></button>
+            </div>
+          )}
           <div className="space-y-5 pt-1">
             {/* Mini Calendar */}
             <MiniCalendar selectedDate={selectedDate} onSelectDate={(d) => {
@@ -425,14 +446,14 @@ const CoachCalendarSetup: React.FC = () => {
                   const color = CAL_COLORS[ci % CAL_COLORS.length];
                   const enabled = enabledCalendarIds.has(cal.id);
                   return (
-                    <div key={cal.id} className="flex items-center gap-2.5 py-1.5 px-1 rounded-md hover:bg-white/5 cursor-pointer group" onClick={() => toggleCalendarEnabled(cal.id)}>
-                      <div className={`w-4 h-4 rounded flex items-center justify-center border-2 transition-colors`} style={{ borderColor: color, backgroundColor: enabled ? color : 'transparent' }}>
+                    <div key={cal.id} className="flex items-center gap-2.5 py-2 sm:py-1.5 px-1 rounded-md hover:bg-white/5 cursor-pointer group" onClick={() => toggleCalendarEnabled(cal.id)}>
+                      <div className={`w-5 h-5 sm:w-4 sm:h-4 rounded flex items-center justify-center border-2 transition-colors`} style={{ borderColor: color, backgroundColor: enabled ? color : 'transparent' }}>
                         {enabled && <Check size={10} className="text-white" strokeWidth={3} />}
                       </div>
                       <span className={`text-sm flex-1 truncate ${enabled ? 'text-zinc-200' : 'text-zinc-500 line-through'}`}>{cal.name}</span>
-                      <button onClick={(e) => { e.stopPropagation(); setSelectedCalendar(cal); setViewMode('settings'); }}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-white/10 rounded">
-                        <Settings size={12} className="text-zinc-500" />
+                      <button onClick={(e) => { e.stopPropagation(); setSelectedCalendar(cal); setViewMode('settings'); if (isMobile) setSidebarOpen(false); }}
+                        className="opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity p-1 sm:p-0.5 hover:bg-white/10 rounded">
+                        <Settings size={14} className="text-zinc-500 sm:w-3 sm:h-3" />
                       </button>
                     </div>
                   );
@@ -471,16 +492,17 @@ const CoachCalendarSetup: React.FC = () => {
           {viewMode === 'calendar' ? (
             <div className="h-full flex flex-col bg-[#1a1a1a] rounded-xl border border-zinc-800/50 overflow-hidden">
               {/* Day column headers */}
-              <div className={`grid shrink-0 border-b border-zinc-800/50`} style={{ gridTemplateColumns: `56px repeat(${visibleDates.length}, 1fr)` }}>
+              <div className={`grid shrink-0 border-b border-zinc-800/50`}
+                style={{ gridTemplateColumns: `40px repeat(${visibleDates.length}, 1fr)` }}>
                 <div className="border-r border-zinc-800/30" />
                 {visibleDates.map((d, i) => {
                   const ds = d.toISOString().split('T')[0];
                   const isToday = ds === todayStr;
                   return (
-                    <div key={i} className={`py-3 text-center border-r border-zinc-800/30 last:border-r-0`}>
-                      <p className={`text-[11px] font-medium uppercase ${isToday ? 'text-[#4285f4]' : 'text-zinc-500'}`}>{DAY_LABELS[d.getDay()]}</p>
+                    <div key={i} className={`py-2 sm:py-3 text-center border-r border-zinc-800/30 last:border-r-0`}>
+                      <p className={`text-[10px] sm:text-[11px] font-medium uppercase ${isToday ? 'text-[#4285f4]' : 'text-zinc-500'}`}>{DAY_LABELS[d.getDay()]}</p>
                       <button onClick={() => { setSelectedDate(d); if (calView === 'week') setCalView('day'); }}
-                        className={`w-10 h-10 rounded-full text-xl font-medium mt-0.5 transition-colors ${
+                        className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full text-base sm:text-xl font-medium mt-0.5 transition-colors ${
                           isToday ? 'bg-[#4285f4] text-white' : 'text-zinc-200 hover:bg-white/5'
                         }`}>
                         {d.getDate()}
@@ -496,8 +518,8 @@ const CoachCalendarSetup: React.FC = () => {
                   {/* Hour rows */}
                   {HOURS.map((hour, hi) => (
                     <div key={hour} className="absolute w-full flex" style={{ top: `${hi * HOUR_HEIGHT}px`, height: `${HOUR_HEIGHT}px` }}>
-                      <div className="w-14 shrink-0 pr-2 -mt-2 text-right">
-                        <span className="text-[10px] text-zinc-600">{String(hour).padStart(2, '0')}:00</span>
+                      <div className="w-10 sm:w-14 shrink-0 pr-1 sm:pr-2 -mt-2 text-right">
+                        <span className="text-[9px] sm:text-[10px] text-zinc-600">{String(hour).padStart(2, '0')}:00</span>
                       </div>
                       <div className="flex-1 border-t border-zinc-800/40" />
                     </div>
@@ -505,13 +527,13 @@ const CoachCalendarSetup: React.FC = () => {
                   {/* Half-hour lines */}
                   {HOURS.map((hour, hi) => (
                     <div key={`half-${hour}`} className="absolute w-full flex" style={{ top: `${hi * HOUR_HEIGHT + HOUR_HEIGHT / 2}px` }}>
-                      <div className="w-14 shrink-0" />
+                      <div className="w-10 sm:w-14 shrink-0" />
                       <div className="flex-1 border-t border-zinc-800/20 border-dashed" />
                     </div>
                   ))}
 
                   {/* Day columns */}
-                  <div className="absolute top-0 left-14 right-0 bottom-0" style={{ display: 'grid', gridTemplateColumns: `repeat(${visibleDates.length}, 1fr)` }}>
+                  <div className="absolute top-0 left-10 sm:left-14 right-0 bottom-0" style={{ display: 'grid', gridTemplateColumns: `repeat(${visibleDates.length}, 1fr)` }}>
                     {visibleDates.map((d, di) => {
                       const ds = d.toISOString().split('T')[0];
                       const isToday = ds === todayStr;
@@ -590,7 +612,7 @@ const CoachCalendarSetup: React.FC = () => {
                           </div>
                           {has && <button onClick={() => addAvailSlot(day)} className="text-xs text-zinc-500 hover:text-[#4285f4] flex items-center gap-1"><Plus size={12} /> Slot</button>}
                         </div>
-                        {has && <div className="mt-2 ml-[52px] space-y-2">
+                        {has && <div className="mt-2 ml-8 sm:ml-[52px] space-y-2">
                           {availability.map((slot, idx) => slot.day_of_week !== day ? null : (
                             <div key={idx} className="flex items-center gap-2">
                               <select value={slot.start_time} onChange={e => updateAvailSlot(idx, 'start_time', e.target.value)} className="bg-zinc-900/50 border border-zinc-700 rounded-md px-2 py-1.5 text-white text-xs outline-none focus:border-[#4285f4]">{TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}</select>
@@ -665,8 +687,8 @@ const CoachCalendarSetup: React.FC = () => {
 
       {/* ═══ BOOKING DETAIL MODAL ═══ */}
       {selectedBooking && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-start justify-center pt-[10vh]" onClick={() => setSelectedBooking(null)}>
-          <div className="bg-[#2a2a2a] border border-zinc-700 rounded-xl w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-end sm:items-start justify-center sm:pt-[10vh]" onClick={() => setSelectedBooking(null)}>
+          <div className="bg-[#2a2a2a] border border-zinc-700 rounded-t-2xl sm:rounded-xl w-full max-w-sm shadow-2xl max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>            <div className="w-10 h-1 bg-zinc-600 rounded-full mx-auto mt-2 sm:hidden" />
             <div className="flex items-start justify-between p-4">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold ${
@@ -714,8 +736,9 @@ const CoachCalendarSetup: React.FC = () => {
 
       {/* ═══ CREATE CALENDAR MODAL ═══ */}
       {showCreateForm && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-start justify-center pt-[10vh]">
-          <div className="bg-[#2a2a2a] border border-zinc-700 rounded-xl p-5 max-w-md w-full shadow-2xl">
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-end sm:items-start justify-center sm:pt-[10vh]">
+          <div className="bg-[#2a2a2a] border border-zinc-700 rounded-t-2xl sm:rounded-xl p-5 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="w-10 h-1 bg-zinc-600 rounded-full mx-auto mb-3 sm:hidden" />
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-medium text-white">Neuer Kalender</h2>
               <button onClick={() => setShowCreateForm(false)} className="text-zinc-500 hover:text-white"><X size={18} /></button>
