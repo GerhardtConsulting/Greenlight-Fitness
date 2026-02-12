@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { signOut, updateProfile, uploadFile, getPublicUrl, requestDataDeletion, exportUserData, createAuditLog, getAssignedPlans } from '../services/supabase';
-import { Camera, Check, LogOut, Globe, Settings, Download, Trash2, FileText, AlertTriangle, RefreshCw, CreditCard, Receipt, ExternalLink, Heart, Loader2, Save, ChevronRight, ArrowLeft, Bell, User2, Scale, Calculator, BookOpen } from 'lucide-react';
+import { signOut, updateProfile, uploadFile, getPublicUrl, requestDataDeletion, exportUserData, createAuditLog, getAssignedPlans, requestDataExport, getExportRequests } from '../services/supabase';
+import { Camera, Check, LogOut, Globe, Settings, Download, Trash2, FileText, AlertTriangle, RefreshCw, CreditCard, Receipt, ExternalLink, Heart, Loader2, Save, ChevronRight, ArrowLeft, Bell, User2, Scale, Calculator, BookOpen, CheckCircle2, Mail, Shield, Clock } from 'lucide-react';
 import { UserRole } from '../types';
 import Button from '../components/Button';
 import CalculatorsModal from '../components/CalculatorsModal';
@@ -44,6 +44,11 @@ const Profile: React.FC = () => {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
+  // Data Export Flow
+  const [exportChecks, setExportChecks] = useState<Record<string, boolean>>({});
+  const [exportConfirmEmail, setExportConfirmEmail] = useState('');
+  const [exportRequests, setExportRequests] = useState<any[]>([]);
+  const [exportRequestsLoading, setExportRequestsLoading] = useState(false);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [purchases, setPurchases] = useState<any[]>([]);
   const [assignedPlans, setAssignedPlans] = useState<any[]>([]);
@@ -201,10 +206,28 @@ const Profile: React.FC = () => {
     }
   };
 
-  const handleExportData = async () => {
+  const loadExportRequests = async () => {
     if (!user) return;
+    setExportRequestsLoading(true);
+    try {
+      const data = await getExportRequests(user.id);
+      setExportRequests(data);
+    } catch {}
+    finally { setExportRequestsLoading(false); }
+  };
+
+  const handleExportData = async () => {
+    if (!user || !user.email) return;
+    // Validate checklist + email confirmation
+    const allChecked = ['understand', 'email', 'gdpr'].every(k => exportChecks[k]);
+    if (!allChecked) return;
+    if (exportConfirmEmail.toLowerCase().trim() !== user.email.toLowerCase().trim()) return;
+
     setExportLoading(true);
     try {
+      // 1. Log the request in DB
+      await requestDataExport(user.id, user.email);
+      // 2. Perform the actual export
       const data = await exportUserData(user.id);
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -215,11 +238,15 @@ const Profile: React.FC = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      // 3. Audit log
       await createAuditLog({ user_id: user.id, action: 'DATA_EXPORT', table_name: 'all' });
-      alert('Datenexport erfolgreich heruntergeladen!');
+      // 4. Reload requests to show status
+      await loadExportRequests();
+      // 5. Reset form
+      setExportChecks({});
+      setExportConfirmEmail('');
     } catch (error) {
       console.error('Export failed:', error);
-      alert('Export fehlgeschlagen.');
     } finally {
       setExportLoading(false);
     }
@@ -414,6 +441,185 @@ const Profile: React.FC = () => {
         <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl p-4">
           <p className="text-xs text-zinc-500">
             <strong className="text-zinc-400">Tipp:</strong> Deine Biografie wird für Athleten sichtbar sein und hilft ihnen, dich als Trainer besser kennenzulernen.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // =================== SUB-PAGE: Datenexport (DSGVO Art. 20) ===================
+  if (subPage === 'export') {
+    const allChecked = ['understand', 'email', 'gdpr'].every(k => exportChecks[k]);
+    const emailMatch = user?.email && exportConfirmEmail.toLowerCase().trim() === user.email.toLowerCase().trim();
+    const canSubmit = allChecked && emailMatch && !exportLoading;
+
+    // Load export requests when opening page
+    if (exportRequests.length === 0 && !exportRequestsLoading) {
+      loadExportRequests();
+    }
+
+    const statusLabel = (s: string) => {
+      switch (s) {
+        case 'PENDING': return { text: 'Angefordert', color: 'text-yellow-400', bg: 'bg-yellow-500/15' };
+        case 'PROCESSING': return { text: 'Wird erstellt', color: 'text-blue-400', bg: 'bg-blue-500/15' };
+        case 'READY': return { text: 'Bereit', color: 'text-[#00FF00]', bg: 'bg-[#00FF00]/15' };
+        case 'DOWNLOADED': return { text: 'Heruntergeladen', color: 'text-zinc-400', bg: 'bg-zinc-700/50' };
+        case 'EXPIRED': return { text: 'Abgelaufen', color: 'text-zinc-500', bg: 'bg-zinc-800' };
+        default: return { text: s, color: 'text-zinc-400', bg: 'bg-zinc-800' };
+      }
+    };
+
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 pb-8 max-w-2xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <button onClick={goBack} className="p-2 -ml-2 text-zinc-400 hover:text-white transition-colors">
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-white tracking-tight">Daten exportieren</h1>
+            <p className="text-zinc-500 text-xs mt-0.5">Art. 20 DSGVO — Recht auf Datenportabilität</p>
+          </div>
+        </div>
+
+        {/* Info */}
+        <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl p-5">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-[#00FF00]/10 flex items-center justify-center shrink-0 mt-0.5">
+              <Shield size={20} className="text-[#00FF00]" />
+            </div>
+            <div>
+              <h3 className="text-white font-bold text-sm">Deine Daten gehören dir</h3>
+              <p className="text-zinc-400 text-xs mt-1 leading-relaxed">
+                Du kannst eine Kopie aller über dich gespeicherten Daten anfordern. Der Export enthält dein Profil, 
+                Trainingspläne, Aktivitäten, Einwilligungen und mehr — in einem maschinenlesbaren Format (JSON).
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Enthaltene Daten</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {['Profildaten', 'Körper- & Gesundheitsdaten', 'Trainingspläne', 'Trainingshistorie', 'Aktivitäts-Logs', 'Einwilligungen & Audit-Logs'].map(item => (
+                <div key={item} className="flex items-center gap-2 text-xs text-zinc-300 bg-zinc-900/50 rounded-lg px-3 py-2">
+                  <CheckCircle2 size={12} className="text-[#00FF00] shrink-0" />
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Checklist */}
+        <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl p-5 space-y-4">
+          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Checkliste</p>
+          
+          {[
+            { id: 'understand', label: 'Ich verstehe, dass eine Kopie aller meiner Daten erstellt wird' },
+            { id: 'email', label: 'Eine Bestätigung wird an meine hinterlegte E-Mail-Adresse gesendet' },
+            { id: 'gdpr', label: 'Ich fordere diese Daten gemäß Art. 20 DSGVO an' },
+          ].map(item => (
+            <button
+              key={item.id}
+              onClick={() => setExportChecks(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
+              className="flex items-start gap-3 w-full text-left group"
+            >
+              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${
+                exportChecks[item.id] 
+                  ? 'bg-[#00FF00] border-[#00FF00]' 
+                  : 'border-zinc-600 group-hover:border-zinc-400'
+              }`}>
+                {exportChecks[item.id] && <Check size={12} className="text-black" />}
+              </div>
+              <span className={`text-sm leading-snug ${exportChecks[item.id] ? 'text-white' : 'text-zinc-400'}`}>
+                {item.label}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Email Confirmation */}
+        <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <Mail size={16} className="text-zinc-400" />
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Identität bestätigen</p>
+          </div>
+          <p className="text-xs text-zinc-400">
+            Gib deine E-Mail-Adresse ein, um den Export zu bestätigen.
+          </p>
+          <input
+            type="email"
+            value={exportConfirmEmail}
+            onChange={e => setExportConfirmEmail(e.target.value)}
+            placeholder={user?.email || 'deine@email.de'}
+            className={`w-full bg-zinc-900 border rounded-xl px-4 py-3 text-white text-sm outline-none transition-colors ${
+              exportConfirmEmail && emailMatch 
+                ? 'border-[#00FF00] focus:border-[#00FF00]' 
+                : exportConfirmEmail && !emailMatch 
+                  ? 'border-red-500/50 focus:border-red-500' 
+                  : 'border-zinc-700 focus:border-zinc-500'
+            }`}
+          />
+          {exportConfirmEmail && emailMatch && (
+            <p className="text-[#00FF00] text-xs flex items-center gap-1.5"><CheckCircle2 size={12} /> E-Mail bestätigt</p>
+          )}
+          {exportConfirmEmail && !emailMatch && exportConfirmEmail.length > 3 && (
+            <p className="text-red-400 text-xs">E-Mail stimmt nicht überein</p>
+          )}
+        </div>
+
+        {/* Submit Button */}
+        <button
+          onClick={handleExportData}
+          disabled={!canSubmit}
+          className={`w-full py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all ${
+            canSubmit
+              ? 'bg-[#00FF00] text-black hover:bg-[#00FF00]/90 shadow-[0_0_20px_rgba(0,255,0,0.2)]'
+              : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+          }`}
+        >
+          {exportLoading ? (
+            <><Loader2 size={18} className="animate-spin" /> Export wird erstellt...</>
+          ) : (
+            <><Download size={18} /> Datenexport anfordern</>
+          )}
+        </button>
+
+        {/* Previous Requests */}
+        {exportRequests.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-1">Bisherige Anfragen</p>
+            <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800/60">
+              {exportRequests.slice(0, 5).map((req: any) => {
+                const s = statusLabel(req.status);
+                return (
+                  <div key={req.id} className="flex items-center gap-3 p-4">
+                    <div className={`w-8 h-8 rounded-lg ${s.bg} flex items-center justify-center shrink-0`}>
+                      {req.status === 'DOWNLOADED' ? <Check size={14} className={s.color} /> :
+                       req.status === 'PROCESSING' ? <Loader2 size={14} className={`${s.color} animate-spin`} /> :
+                       <Clock size={14} className={s.color} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-medium">Datenexport</p>
+                      <p className="text-zinc-500 text-xs">
+                        {new Date(req.requested_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${s.bg} ${s.color}`}>
+                      {s.text}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Info Footer */}
+        <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl p-4">
+          <p className="text-xs text-zinc-500 leading-relaxed">
+            <strong className="text-zinc-400">Hinweis:</strong> Dein Datenexport wird sofort als JSON-Datei heruntergeladen. 
+            Gemäß DSGVO Art. 20 hast du das Recht auf Datenportabilität. Die Anfrage wird protokolliert.
           </p>
         </div>
       </div>
@@ -689,7 +895,7 @@ const Profile: React.FC = () => {
             </div>
             <ChevronRight size={16} className="text-zinc-600 shrink-0" />
           </Link>
-          <button onClick={handleExportData} disabled={exportLoading} className="w-full flex items-center gap-3.5 p-4 hover:bg-zinc-900/50 transition-colors disabled:opacity-50 active:bg-zinc-800/50">
+          <button onClick={() => setSubPage('export')} className="w-full flex items-center gap-3.5 p-4 hover:bg-zinc-900/50 transition-colors active:bg-zinc-800/50">
             <div className="w-9 h-9 rounded-[10px] bg-[#00FF00]/10 flex items-center justify-center shrink-0">
               <Download size={18} className="text-[#00FF00]" />
             </div>
@@ -697,7 +903,7 @@ const Profile: React.FC = () => {
               <span className="text-white text-sm font-medium block">Daten exportieren</span>
               <span className="text-zinc-500 text-xs block">Art. 20 DSGVO</span>
             </div>
-            {exportLoading ? <Loader2 size={16} className="text-zinc-500 animate-spin shrink-0" /> : <ChevronRight size={16} className="text-zinc-600 shrink-0" />}
+            <ChevronRight size={16} className="text-zinc-600 shrink-0" />
           </button>
           <button onClick={() => setShowDeleteConfirm(true)} className="w-full flex items-center gap-3.5 p-4 hover:bg-red-500/10 transition-colors active:bg-red-500/5">
             <div className="w-9 h-9 rounded-[10px] bg-red-500/15 flex items-center justify-center shrink-0">
