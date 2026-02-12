@@ -1932,6 +1932,15 @@ export const getCoachCalendars = async (coachId: string) => {
   return data || [];
 };
 
+export const getAllCoachCalendars = async () => {
+  const { data, error } = await supabase
+    .from('coach_calendars')
+    .select('*, profiles!coach_id(first_name, last_name, nickname, role)')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+};
+
 export const createCoachCalendar = async (calendar: {
   coach_id: string;
   name: string;

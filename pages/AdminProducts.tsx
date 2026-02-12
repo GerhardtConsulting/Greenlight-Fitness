@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getProducts, getPlans, createProduct, updateProduct, deleteProduct, uploadFile, getPublicUrl, getCoachCalendars, saveProductCalendars, getProductCalendars, supabase } from '../services/supabase';
+import { getProducts, getPlans, createProduct, updateProduct, deleteProduct, uploadFile, getPublicUrl, getCoachCalendars, getAllCoachCalendars, saveProductCalendars, getProductCalendars, supabase } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Product, TrainingPlan, ProductCategory, ProductType } from '../types';
@@ -8,7 +8,8 @@ import Input from '../components/Input';
 import { 
   Package, Plus, Trash2, Edit, X, Image as ImageIcon, Upload, Loader2,
   ChevronLeft, DollarSign, Tag, FileText, Layers, CheckCircle, Calendar,
-  AlertCircle, Eye, EyeOff, Link2, Sparkles, Save, Info, AlertTriangle, Scale, Gift
+  AlertCircle, Eye, EyeOff, Link2, Sparkles, Save, Info, AlertTriangle, Scale, Gift,
+  MessageSquare, Users
 } from 'lucide-react';
 import PriceChangeChecklist from '../components/PriceChangeChecklist';
 import ConfirmActionModal, { ConfirmActionConfig } from '../components/ConfirmActionModal';
@@ -46,7 +47,12 @@ const AdminProducts: React.FC = () => {
     selectedPlanIds: [],
     hasChatAccess: false,
     trialDays: 0,
+    requiresConsultation: false,
+    consultationCalendarMode: 'all',
   });
+
+  const [allCalendars, setAllCalendars] = useState<any[]>([]);
+  const [consultationCalendarIds, setConsultationCalendarIds] = useState<string[]>([]);
 
   const [currentFeature, setCurrentFeature] = useState('');
   const [creatingStripe, setCreatingStripe] = useState(false);
@@ -99,6 +105,8 @@ const AdminProducts: React.FC = () => {
         calendar_id: d.calendar_id || null,
         stripeProductId: d.stripe_product_id || null,
         stripePriceId: d.stripe_price_id || null,
+        requiresConsultation: d.requires_consultation ?? false,
+        consultationCalendarMode: d.consultation_calendar_mode || 'all',
       } as Product)));
 
       const planData = await getPlans();
@@ -112,6 +120,15 @@ const AdminProducts: React.FC = () => {
 
       const calData = await getCoachCalendars(user.id);
       setCoachCalendars(calData);
+
+      // Load ALL coach calendars for consultation assignment
+      try {
+        const allCals = await getAllCoachCalendars();
+        setAllCalendars(allCals);
+      } catch (e) {
+        console.warn('Could not load all calendars:', e);
+        setAllCalendars(calData); // fallback to own calendars
+      }
     } catch (err) {
       console.error("Error fetching admin data:", err);
       setError("Fehler beim Laden der Daten");
@@ -136,9 +153,12 @@ const AdminProducts: React.FC = () => {
       isActive: true,
       selectedPlanIds: [],
       trialDays: 0,
+      requiresConsultation: false,
+      consultationCalendarMode: 'all',
     });
     setCurrentFeature('');
     setEditingProduct(null);
+    setConsultationCalendarIds([]);
   };
 
   const handleCreate = () => {
@@ -170,8 +190,11 @@ const AdminProducts: React.FC = () => {
       const pcs = await getProductCalendars(product.id);
       const ids = pcs.map((pc: any) => pc.calendar_id);
       setSelectedCalendarIds(ids.length > 0 ? ids : product.calendar_id ? [product.calendar_id] : []);
+      // Also use for consultation calendars
+      setConsultationCalendarIds(ids.length > 0 ? ids : product.calendar_id ? [product.calendar_id] : []);
     } catch {
       setSelectedCalendarIds(product.calendar_id ? [product.calendar_id] : []);
+      setConsultationCalendarIds(product.calendar_id ? [product.calendar_id] : []);
     }
   };
 
@@ -327,6 +350,8 @@ const AdminProducts: React.FC = () => {
         trial_days: formData.trialDays || 0,
         stripe_product_id: stripeData?.stripe_product_id || null,
         stripe_price_id: stripeData?.stripe_price_id || null,
+        requires_consultation: formData.requiresConsultation ?? false,
+        consultation_calendar_mode: formData.consultationCalendarMode || 'all',
       };
       
       console.log("Saving product with payload:", payload);
@@ -348,8 +373,11 @@ const AdminProducts: React.FC = () => {
       await saveProductPlans(productId, formData.selectedPlanIds || []);
 
       // 4. Save product-calendar relationships (multi-coach)
-      if (selectedCalendarIds.length > 0) {
-        await saveProductCalendars(productId, selectedCalendarIds);
+      const calIds = formData.requiresConsultation && formData.consultationCalendarMode === 'selected'
+        ? consultationCalendarIds
+        : selectedCalendarIds;
+      if (calIds.length > 0) {
+        await saveProductCalendars(productId, calIds);
       }
       
       await fetchData();
@@ -1114,6 +1142,155 @@ const AdminProducts: React.FC = () => {
                 <AlertTriangle size={14} />
                 Bei 1:1 Coaching wird empfohlen, den Chat-Zugang zu aktivieren.
               </p>
+            </div>
+          )}
+        </section>
+
+        {/* SECTION 9: Vorabgespräch */}
+        <section className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${formData.requiresConsultation ? 'bg-orange-500/10' : 'bg-zinc-800'}`}>
+                {formData.requiresConsultation
+                  ? <MessageSquare size={20} className="text-orange-400" />
+                  : <MessageSquare size={20} className="text-zinc-500" />}
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-white">Vorabgespräch erforderlich</h2>
+                <p className="text-xs text-zinc-500">
+                  {formData.requiresConsultation
+                    ? 'Käufer müssen vor dem Kauf ein Gespräch buchen'
+                    : 'Kein Vorabgespräch nötig — direkter Kauf möglich'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFormData({...formData, requiresConsultation: !formData.requiresConsultation})}
+              className={`relative w-14 h-8 rounded-full transition-colors ${formData.requiresConsultation ? 'bg-orange-500' : 'bg-zinc-700'}`}
+            >
+              <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-transform ${formData.requiresConsultation ? 'left-7' : 'left-1'}`} />
+            </button>
+          </div>
+
+          {/* Consultation Calendar Config — only when enabled */}
+          {formData.requiresConsultation && (
+            <div className="mt-6 space-y-5 pt-5 border-t border-zinc-800">
+              {/* Calendar Mode */}
+              <div className="space-y-3">
+                <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">Welche Kalender für Vorabgespräche?</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({...formData, consultationCalendarMode: 'all'})}
+                    className={`p-4 rounded-xl border text-left transition-all ${
+                      formData.consultationCalendarMode === 'all'
+                        ? 'bg-orange-500/10 border-orange-500/40 ring-1 ring-orange-500/20'
+                        : 'bg-[#121212] border-zinc-800 hover:border-zinc-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Users size={20} className={formData.consultationCalendarMode === 'all' ? 'text-orange-400' : 'text-zinc-500'} />
+                      <div>
+                        <span className={`text-sm font-bold block ${formData.consultationCalendarMode === 'all' ? 'text-orange-400' : 'text-white'}`}>
+                          Alle verfügbaren
+                        </span>
+                        <span className="text-[10px] text-zinc-500 mt-0.5 block">Alle Coaches/Admins mit Kalender</span>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({...formData, consultationCalendarMode: 'selected'})}
+                    className={`p-4 rounded-xl border text-left transition-all ${
+                      formData.consultationCalendarMode === 'selected'
+                        ? 'bg-orange-500/10 border-orange-500/40 ring-1 ring-orange-500/20'
+                        : 'bg-[#121212] border-zinc-800 hover:border-zinc-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Calendar size={20} className={formData.consultationCalendarMode === 'selected' ? 'text-orange-400' : 'text-zinc-500'} />
+                      <div>
+                        <span className={`text-sm font-bold block ${formData.consultationCalendarMode === 'selected' ? 'text-orange-400' : 'text-white'}`}>
+                          Bestimmte auswählen
+                        </span>
+                        <span className="text-[10px] text-zinc-500 mt-0.5 block">Nur ausgewählte Coaches</span>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Calendar Picker (only when mode = selected) */}
+              {formData.consultationCalendarMode === 'selected' && (
+                <div className="space-y-3">
+                  <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">
+                    Kalender auswählen <span className="text-zinc-600 normal-case">(Mehrfachauswahl)</span>
+                  </label>
+                  {allCalendars.length > 0 ? (
+                    <div className="space-y-2 max-h-[280px] overflow-y-auto">
+                      {allCalendars.map(cal => {
+                        const isSelected = consultationCalendarIds.includes(cal.id);
+                        const profile = cal.profiles;
+                        const ownerName = profile
+                          ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.nickname || 'Coach'
+                          : (cal.coach_id === user?.id ? 'Du' : 'Coach');
+                        const roleBadge = profile?.role === 'ADMIN' ? 'Admin' : 'Coach';
+                        return (
+                          <label key={cal.id} className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                            isSelected ? 'border-orange-500/50 bg-orange-500/5' : 'border-zinc-800 bg-[#121212] hover:border-zinc-700'
+                          }`}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {
+                                setConsultationCalendarIds(prev =>
+                                  isSelected ? prev.filter(id => id !== cal.id) : [...prev, cal.id]
+                                );
+                              }}
+                              className="accent-orange-500 w-4 h-4"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-white text-sm font-medium">{cal.name}</span>
+                                <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                                  roleBadge === 'Admin' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
+                                }`}>{roleBadge}</span>
+                              </div>
+                              <span className="text-zinc-500 text-xs block mt-0.5">
+                                {ownerName} · {cal.slot_duration_minutes || 30} Min
+                              </span>
+                            </div>
+                            {isSelected && <CheckCircle size={18} className="text-orange-400 shrink-0" />}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-400 flex items-center gap-1 py-3">
+                      <AlertCircle size={12} /> Keine Kalender verfügbar. Erstelle zuerst einen Kalender.
+                    </p>
+                  )}
+                  {consultationCalendarIds.length > 0 && (
+                    <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 flex items-center gap-2">
+                      <Info size={14} className="text-orange-400 shrink-0" />
+                      <p className="text-xs text-orange-300">
+                        <strong>{consultationCalendarIds.length} Kalender</strong> ausgewählt — Athleten können bei diesen Coaches ein Vorabgespräch buchen.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Info when mode = all */}
+              {formData.consultationCalendarMode === 'all' && (
+                <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 flex items-center gap-2">
+                  <Info size={14} className="text-orange-400 shrink-0" />
+                  <p className="text-xs text-orange-300">
+                    Alle {allCalendars.length} verfügbaren Kalender von Coaches und Admins werden für Vorabgespräche angeboten.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </section>

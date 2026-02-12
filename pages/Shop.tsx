@@ -50,9 +50,9 @@ const Shop: React.FC = () => {
   const fetchCoachingApprovals = async () => {
     if (!user) return;
     try {
-      // Fetch all COACHING_1ON1 products and check approval status
+      // Fetch all products that require consultation and check approval status
       const productsData = await getProducts(undefined, true);
-      const coachingProducts = productsData.filter((p: any) => p.type === 'COACHING_1ON1');
+      const coachingProducts = productsData.filter((p: any) => p.requires_consultation || p.type === 'COACHING_1ON1');
       
       const approvalsMap = new Map<string, CoachingApproval>();
       const pendingSet = new Set<string>();
@@ -176,6 +176,8 @@ const Shop: React.FC = () => {
         thumbnailUrl: d.thumbnail_url,
         isActive: d.is_active,
         calendarId: d.calendar_id,
+        requiresConsultation: d.requires_consultation ?? false,
+        consultationCalendarMode: d.consultation_calendar_mode || 'all',
       } as any)));
     } catch (error) {
       console.error("Error fetching products:", error);
@@ -343,8 +345,8 @@ const Shop: React.FC = () => {
               calendar_id: calId,
           });
           
-          // For COACHING_1ON1: Also create a coaching approval entry
-          if (selectedProduct.type === 'COACHING_1ON1') {
+          // Create a coaching approval entry for products requiring consultation
+          if ((selectedProduct as any).requiresConsultation || selectedProduct.type === 'COACHING_1ON1') {
               await createCoachingApproval({
                   athlete_id: user.id,
                   product_id: selectedProduct.id,
@@ -565,8 +567,8 @@ const Shop: React.FC = () => {
                               <Button disabled fullWidth className="opacity-50 cursor-not-allowed bg-[#00FF00]/20 border-[#00FF00]/30">
                                   <Check size={18} className="mr-2" /> Bereits gekauft
                               </Button>
-                          ) : selectedProduct.type === 'COACHING_1ON1' ? (
-                              // GATED PURCHASE FLOW for 1:1 Coaching
+                          ) : ((selectedProduct as any).requiresConsultation || selectedProduct.type === 'COACHING_1ON1') ? (
+                              // GATED PURCHASE FLOW for products requiring consultation
                               (() => {
                                   const approval = coachingApprovals.get(selectedProduct.id);
                                   const hasPendingConsultation = pendingConsultations.has(selectedProduct.id);
@@ -625,7 +627,7 @@ const Shop: React.FC = () => {
                                       <div className="space-y-3">
                                           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
                                               <p className="text-zinc-300 text-sm font-medium mb-1">
-                                                  Für 1:1 Coaching ist ein kostenloses Vorabgespräch erforderlich.
+                                                  {selectedProduct.type === 'COACHING_1ON1' ? 'Für 1:1 Coaching ist ein kostenloses Vorabgespräch erforderlich.' : 'Für dieses Produkt ist ein kostenloses Vorabgespräch erforderlich.'}
                                               </p>
                                               <p className="text-zinc-500 text-xs">
                                                   Buche jetzt einen Termin – danach wirst du für den Kauf freigeschaltet.

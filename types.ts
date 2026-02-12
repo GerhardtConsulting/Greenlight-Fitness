@@ -209,6 +209,8 @@ export interface Product {
   isActive: boolean;
   hasChatAccess?: boolean; // Whether this product includes chat with coach
   trialDays?: number; // Free trial period in days (Stripe trial_period_days)
+  requiresConsultation?: boolean; // Whether a consultation is required before purchase
+  consultationCalendarMode?: 'all' | 'selected'; // 'all' = all coach calendars, 'selected' = specific ones
 }
 
 // --- WORKOUT BUILDER TYPES ---
