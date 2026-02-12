@@ -360,6 +360,25 @@ const AdminProducts: React.FC = () => {
       if (editingProduct) {
         await updateProduct(editingProduct.id, payload);
         productId = editingProduct.id;
+        // Optimistically update local state so changes appear immediately
+        setProducts(prev => prev.map(p => p.id === editingProduct.id ? {
+          ...p,
+          title: payload.title,
+          description: payload.description,
+          longDescription: payload.long_description,
+          features: payload.features,
+          category: payload.category,
+          type: payload.type,
+          price: payload.price,
+          currency: payload.currency,
+          interval: payload.interval,
+          thumbnailUrl: payload.thumbnail_url,
+          isActive: payload.is_active,
+          hasChatAccess: payload.has_chat_access,
+          trialDays: payload.trial_days,
+          requiresConsultation: payload.requires_consultation,
+          consultationCalendarMode: payload.consultation_calendar_mode,
+        } as Product : p));
         setSuccess("Produkt erfolgreich aktualisiert!");
       } else {
         const newProduct = await createProduct(payload);
