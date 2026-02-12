@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { signOut, updateProfile, uploadFile, getPublicUrl, requestDataDeletion, exportUserData, createAuditLog, getAssignedPlans } from '../services/supabase';
-import { Camera, Check, LogOut, Globe, Settings, Download, Trash2, FileText, AlertTriangle, RefreshCw, CreditCard, Receipt, ExternalLink, Heart, Loader2, Save, ChevronRight } from 'lucide-react';
+import { Camera, Check, LogOut, Globe, Settings, Download, Trash2, FileText, AlertTriangle, RefreshCw, CreditCard, Receipt, ExternalLink, Heart, Loader2, Save, ChevronRight, ArrowLeft, Bell, User2, Scale, Calculator } from 'lucide-react';
 import { UserRole } from '../types';
 import Button from '../components/Button';
 import CalculatorsModal from '../components/CalculatorsModal';
@@ -55,6 +55,7 @@ const Profile: React.FC = () => {
   const [saved, setSaved] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [subPage, setSubPage] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     firstName: '',
@@ -247,218 +248,282 @@ const Profile: React.FC = () => {
     ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim()
     : userProfile?.nickname || userProfile?.email?.split('@')[0] || 'User';
 
+  const goBack = () => { setSubPage(null); setEditing(false); };
+
+  // =================== SUB-PAGE: Persönliche Daten ===================
+  if (subPage === 'personal') {
+    return (
+      <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300 pb-8">
+        <CalculatorsModal isOpen={showTools} onClose={() => setShowTools(false)} />
+        <HealthDataModal isOpen={showHealthData} onClose={() => setShowHealthData(false)} />
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarSelect} />
+        <div className="flex items-center justify-between">
+          <button onClick={goBack} className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors -ml-1">
+            <ArrowLeft size={20} />
+            <span className="text-sm font-medium">Profil</span>
+          </button>
+          {editing ? (
+            <div className="flex gap-2">
+              <button onClick={() => setEditing(false)} className="px-3 py-1.5 text-sm text-zinc-400 hover:text-white transition-colors">Abbrechen</button>
+              <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-1.5 bg-[#00FF00] text-black font-bold rounded-xl text-sm hover:bg-[#00FF00]/80 disabled:opacity-50">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Speichern
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setEditing(true)} className="px-4 py-1.5 bg-zinc-800 text-white font-medium rounded-xl text-sm hover:bg-zinc-700 transition-colors">
+              Bearbeiten
+            </button>
+          )}
+        </div>
+        <h1 className="text-2xl font-bold text-white tracking-tight">Persönliche Daten</h1>
+        {saved && (
+          <div className="bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] text-sm p-3 rounded-xl flex items-center gap-2">
+            <Check size={14} /> Gespeichert!
+          </div>
+        )}
+        <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <ProfileField label="Vorname" value={form.firstName} field="firstName" editing={editing} onChange={handleFieldChange} />
+            <ProfileField label="Nachname" value={form.lastName} field="lastName" editing={editing} onChange={handleFieldChange} />
+          </div>
+          <ProfileField label="Spitzname" value={form.nickname} field="nickname" editing={editing} onChange={handleFieldChange} />
+          <div>
+            <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Geschlecht</label>
+            {editing ? (
+              <select
+                value={form.gender}
+                onChange={e => setForm(prev => ({ ...prev, gender: e.target.value as 'male' | 'female' }))}
+                className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-xl px-4 py-3 focus:border-[#00FF00] outline-none text-sm"
+              >
+                <option value="male">Männlich</option>
+                <option value="female">Weiblich</option>
+              </select>
+            ) : (
+              <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white">
+                {form.gender === 'male' ? 'Männlich' : 'Weiblich'}
+              </div>
+            )}
+          </div>
+          <ProfileField label="Geburtsdatum" value={form.birthDate} field="birthDate" type="date" editing={editing} onChange={handleFieldChange} />
+        </div>
+      </div>
+    );
+  }
+
+  // =================== SUB-PAGE: Körperdaten ===================
+  if (subPage === 'body') {
+    return (
+      <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300 pb-8">
+        <div className="flex items-center justify-between">
+          <button onClick={goBack} className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors -ml-1">
+            <ArrowLeft size={20} />
+            <span className="text-sm font-medium">Profil</span>
+          </button>
+          {editing ? (
+            <div className="flex gap-2">
+              <button onClick={() => setEditing(false)} className="px-3 py-1.5 text-sm text-zinc-400 hover:text-white transition-colors">Abbrechen</button>
+              <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-4 py-1.5 bg-[#00FF00] text-black font-bold rounded-xl text-sm hover:bg-[#00FF00]/80 disabled:opacity-50">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Speichern
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setEditing(true)} className="px-4 py-1.5 bg-zinc-800 text-white font-medium rounded-xl text-sm hover:bg-zinc-700 transition-colors">
+              Bearbeiten
+            </button>
+          )}
+        </div>
+        <h1 className="text-2xl font-bold text-white tracking-tight">Körperdaten</h1>
+        {saved && (
+          <div className="bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] text-sm p-3 rounded-xl flex items-center gap-2">
+            <Check size={14} /> Gespeichert!
+          </div>
+        )}
+        <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl p-5 space-y-4">
+          <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Maße</p>
+          <div className="grid grid-cols-2 gap-3">
+            <ProfileField label="Größe" value={form.height} field="height" type="number" suffix="cm" editing={editing} onChange={handleFieldChange} />
+            <ProfileField label="Gewicht" value={form.weight} field="weight" type="number" suffix="kg" editing={editing} onChange={handleFieldChange} />
+            <ProfileField label="Körperfett" value={form.bodyFat} field="bodyFat" type="number" suffix="%" editing={editing} onChange={handleFieldChange} />
+            <ProfileField label="Taillenumfang" value={form.waistCircumference} field="waistCircumference" type="number" suffix="cm" editing={editing} onChange={handleFieldChange} />
+          </div>
+        </div>
+        <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl p-5 space-y-4">
+          <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Herzfrequenz</p>
+          <div className="grid grid-cols-2 gap-3">
+            <ProfileField label="Ruhe-HF" value={form.restingHeartRate} field="restingHeartRate" type="number" suffix="bpm" editing={editing} onChange={handleFieldChange} />
+            <ProfileField label="Max-HF" value={form.maxHeartRate} field="maxHeartRate" type="number" suffix="bpm" editing={editing} onChange={handleFieldChange} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =================== SUB-PAGE: Benachrichtigungen ===================
+  if (subPage === 'notifications') {
+    return (
+      <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-300 pb-8">
+        <button onClick={() => setSubPage(null)} className="flex items-center gap-2 text-zinc-400 hover:text-white transition-colors -ml-1">
+          <ArrowLeft size={20} />
+          <span className="text-sm font-medium">Profil</span>
+        </button>
+        <h1 className="text-2xl font-bold text-white tracking-tight">Benachrichtigungen</h1>
+        <NotificationSettings />
+      </div>
+    );
+  }
+
+  // =================== MAIN PROFILE VIEW ===================
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 pb-8">
       <CalculatorsModal isOpen={showTools} onClose={() => setShowTools(false)} />
       <HealthDataModal isOpen={showHealthData} onClose={() => setShowHealthData(false)} />
       <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarSelect} />
 
-      {/* === PROFILE HEADER WITH AVATAR === */}
-      <div className="bg-gradient-to-br from-[#1C1C1E] to-black border border-zinc-800 rounded-[2rem] p-6 relative overflow-hidden">
-        <div className="flex items-center gap-5">
-          {/* Avatar */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="relative shrink-0 group"
-            disabled={uploadingAvatar}
-          >
-            <div className="w-20 h-20 rounded-full overflow-hidden border-[3px] border-zinc-700 group-hover:border-[#00FF00] transition-colors">
-              {avatarPreview ? (
-                <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-3xl font-bold text-[#00FF00]">
-                  {displayName[0]?.toUpperCase()}
-                </div>
-              )}
-            </div>
-            <div className="absolute -bottom-0.5 -right-0.5 w-7 h-7 bg-[#00FF00] rounded-full flex items-center justify-center border-2 border-[#1C1C1E] group-hover:scale-110 transition-transform">
-              {uploadingAvatar ? (
-                <Loader2 size={12} className="text-black animate-spin" />
-              ) : (
-                <Camera size={12} className="text-black" />
-              )}
-            </div>
-          </button>
-
-          {/* Name + Email */}
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold text-white tracking-tight truncate">{displayName}</h1>
-            <p className="text-zinc-500 text-sm truncate">{user?.email}</p>
-            {userProfile?.role && (
-              <span className="inline-block mt-2 text-[10px] font-bold uppercase tracking-widest bg-[#00FF00]/10 text-[#00FF00] px-2.5 py-1 rounded-lg">
-                {userProfile.role}
-              </span>
+      {/* === CENTERED PROFILE HEADER === */}
+      <div className="flex flex-col items-center text-center pt-2 pb-2">
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="relative group mb-4"
+          disabled={uploadingAvatar}
+        >
+          <div className="w-24 h-24 rounded-full overflow-hidden border-[3px] border-zinc-700 group-hover:border-[#00FF00] transition-colors">
+            {avatarPreview ? (
+              <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full bg-zinc-800 flex items-center justify-center text-3xl font-bold text-[#00FF00]">
+                {displayName[0]?.toUpperCase()}
+              </div>
             )}
           </div>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="flex gap-4 mt-5 pt-5 border-t border-zinc-800/60">
-          <div className="flex-1 text-center">
-            <span className="block text-lg font-bold text-white">{userProfile?.height || '—'}</span>
-            <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">cm</span>
+          <div className="absolute bottom-0 right-0 w-8 h-8 bg-[#00FF00] rounded-full flex items-center justify-center border-[3px] border-black group-hover:scale-110 transition-transform">
+            {uploadingAvatar ? (
+              <Loader2 size={14} className="text-black animate-spin" />
+            ) : (
+              <Camera size={14} className="text-black" />
+            )}
           </div>
-          <div className="w-px bg-zinc-800"></div>
-          <div className="flex-1 text-center">
-            <span className="block text-lg font-bold text-white">{userProfile?.weight || '—'}</span>
-            <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">kg</span>
-          </div>
-          <div className="w-px bg-zinc-800"></div>
-          <div className="flex-1 text-center">
-            <span className="block text-lg font-bold text-white">{userProfile?.bodyFat || '—'}</span>
-            <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider">%KFA</span>
-          </div>
-        </div>
-      </div>
-
-      {/* === INLINE PROFILE EDITOR === */}
-      <div className="bg-[#1C1C1E] border border-zinc-800 rounded-[2rem] overflow-hidden">
-        <div className="p-5 border-b border-zinc-800 flex items-center justify-between">
-          <h2 className="text-white font-bold text-lg">Profil bearbeiten</h2>
-          {editing ? (
-            <div className="flex gap-2">
-              <button onClick={() => setEditing(false)} className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">
-                Abbrechen
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#00FF00] text-black font-bold rounded-xl text-sm hover:bg-[#00FF00]/80 transition-colors disabled:opacity-50"
-              >
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                Speichern
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setEditing(true)}
-              className="px-4 py-2 bg-zinc-800 text-white font-medium rounded-xl text-sm hover:bg-zinc-700 transition-colors"
-            >
-              Bearbeiten
-            </button>
-          )}
-        </div>
-
-        {saved && (
-          <div className="px-5 pt-3">
-            <div className="bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] text-sm p-3 rounded-xl flex items-center gap-2">
-              <Check size={14} /> Profil gespeichert!
-            </div>
-          </div>
-        )}
-
-        <div className="p-5 space-y-5">
-          {/* Personal Info */}
-          <div>
-            <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Persönliche Daten</p>
-            <div className="grid grid-cols-2 gap-3">
-              <ProfileField label="Vorname" value={form.firstName} field="firstName" editing={editing} onChange={handleFieldChange} />
-              <ProfileField label="Nachname" value={form.lastName} field="lastName" editing={editing} onChange={handleFieldChange} />
-            </div>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <ProfileField label="Spitzname" value={form.nickname} field="nickname" editing={editing} onChange={handleFieldChange} />
-              <div>
-                <label className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-1.5">Geschlecht</label>
-                {editing ? (
-                  <select
-                    value={form.gender}
-                    onChange={e => setForm(prev => ({ ...prev, gender: e.target.value as 'male' | 'female' }))}
-                    className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-xl px-4 py-3 focus:border-[#00FF00] outline-none text-sm"
-                  >
-                    <option value="male">Männlich</option>
-                    <option value="female">Weiblich</option>
-                  </select>
-                ) : (
-                  <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-white">
-                    {form.gender === 'male' ? 'Männlich' : 'Weiblich'}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="mt-3">
-              <ProfileField label="Geburtsdatum" value={form.birthDate} field="birthDate" type="date" editing={editing} onChange={handleFieldChange} />
-            </div>
-          </div>
-
-          {/* Body Stats */}
-          <div className="pt-2">
-            <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Körperdaten</p>
-            <div className="grid grid-cols-2 gap-3">
-              <ProfileField label="Größe" value={form.height} field="height" type="number" suffix="cm" editing={editing} onChange={handleFieldChange} />
-              <ProfileField label="Gewicht" value={form.weight} field="weight" type="number" suffix="kg" editing={editing} onChange={handleFieldChange} />
-              <ProfileField label="Körperfett" value={form.bodyFat} field="bodyFat" type="number" suffix="%" editing={editing} onChange={handleFieldChange} />
-              <ProfileField label="Taillenumfang" value={form.waistCircumference} field="waistCircumference" type="number" suffix="cm" editing={editing} onChange={handleFieldChange} />
-            </div>
-          </div>
-
-          {/* Heart Rate */}
-          <div className="pt-2">
-            <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-3">Herzfrequenz</p>
-            <div className="grid grid-cols-2 gap-3">
-              <ProfileField label="Ruhe-HF" value={form.restingHeartRate} field="restingHeartRate" type="number" suffix="bpm" editing={editing} onChange={handleFieldChange} />
-              <ProfileField label="Max-HF" value={form.maxHeartRate} field="maxHeartRate" type="number" suffix="bpm" editing={editing} onChange={handleFieldChange} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* === QUICK ACTIONS === */}
-      <div className="grid gap-3">
-        <button
-          onClick={() => setShowHealthData(true)}
-          className="flex items-center gap-4 p-4 bg-[#1C1C1E] border border-zinc-800 rounded-2xl hover:bg-zinc-900 transition-all group"
-        >
-          <div className="w-10 h-10 rounded-xl bg-[#00FF00]/10 flex items-center justify-center text-[#00FF00] group-hover:scale-110 transition-transform">
-            <Heart size={20} />
-          </div>
-          <div className="text-left flex-1">
-            <h3 className="text-white font-bold">Gesundheitsdaten</h3>
-            <p className="text-zinc-500 text-xs">FFMI, TDEE, HR-Zonen berechnen</p>
-          </div>
-          <ChevronRight size={16} className="text-zinc-600" />
         </button>
+        <h1 className="text-xl font-bold text-white tracking-tight">{displayName}</h1>
+        <p className="text-zinc-500 text-sm mt-0.5">{user?.email}</p>
+        {userProfile?.role && (
+          <span className="mt-2 text-[10px] font-bold uppercase tracking-widest bg-[#00FF00]/10 text-[#00FF00] px-3 py-1 rounded-full">
+            {userProfile.role}
+          </span>
+        )}
       </div>
 
-      {/* Role Switcher */}
-      {canSwitchRole && (
-        <div className="space-y-3">
-          <h3 className="text-zinc-500 text-xs font-bold uppercase tracking-widest px-2">Ansicht wechseln</h3>
-          <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl p-4">
-            <div className="flex items-center gap-3 mb-3">
-              <RefreshCw size={16} className="text-[#00FF00]" />
-              <span className="text-white font-medium text-sm">Aktive Rolle</span>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setActiveRole(UserRole.ATHLETE)}
-                className={`flex-1 py-2.5 px-4 rounded-xl font-semibold text-sm transition-all ${
-                  activeRole === UserRole.ATHLETE ? 'bg-[#00FF00] text-black' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                }`}
-              >
-                Athlet
-              </button>
-              <button
-                onClick={() => setActiveRole(UserRole.COACH)}
-                className={`flex-1 py-2.5 px-4 rounded-xl font-semibold text-sm transition-all ${
-                  activeRole === UserRole.COACH ? 'bg-[#00FF00] text-black' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                }`}
-              >
-                Coach
-              </button>
-            </div>
-          </div>
+      {saved && (
+        <div className="bg-[#00FF00]/10 border border-[#00FF00]/30 text-[#00FF00] text-sm p-3 rounded-xl flex items-center gap-2">
+          <Check size={14} /> Profil gespeichert!
         </div>
       )}
 
-      {/* Notifications */}
-      <div className="space-y-3">
-        <h3 className="text-zinc-500 text-xs font-bold uppercase tracking-widest px-2">Benachrichtigungen</h3>
-        <NotificationSettings />
+      {/* === PROFIL MENU GROUP === */}
+      <div>
+        <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest px-4 mb-2">Profil</p>
+        <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800/60">
+          <button onClick={() => setSubPage('personal')} className="w-full flex items-center gap-3.5 p-4 hover:bg-zinc-900/50 transition-colors active:bg-zinc-800/50">
+            <div className="w-9 h-9 rounded-[10px] bg-blue-500/15 flex items-center justify-center shrink-0">
+              <User2 size={18} className="text-blue-400" />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <span className="text-white text-sm font-medium block">Persönliche Daten</span>
+              <span className="text-zinc-500 text-xs truncate block">{displayName}</span>
+            </div>
+            <ChevronRight size={16} className="text-zinc-600 shrink-0" />
+          </button>
+          <button onClick={() => setSubPage('body')} className="w-full flex items-center gap-3.5 p-4 hover:bg-zinc-900/50 transition-colors active:bg-zinc-800/50">
+            <div className="w-9 h-9 rounded-[10px] bg-green-500/15 flex items-center justify-center shrink-0">
+              <Scale size={18} className="text-green-400" />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <span className="text-white text-sm font-medium block">Körperdaten</span>
+              <span className="text-zinc-500 text-xs truncate block">
+                {userProfile?.weight && userProfile?.height ? `${userProfile.weight} kg · ${userProfile.height} cm` : 'Noch nicht ausgefüllt'}
+              </span>
+            </div>
+            <ChevronRight size={16} className="text-zinc-600 shrink-0" />
+          </button>
+          <button onClick={() => setShowHealthData(true)} className="w-full flex items-center gap-3.5 p-4 hover:bg-zinc-900/50 transition-colors active:bg-zinc-800/50">
+            <div className="w-9 h-9 rounded-[10px] bg-red-500/15 flex items-center justify-center shrink-0">
+              <Heart size={18} className="text-red-400" />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <span className="text-white text-sm font-medium block">Gesundheitsdaten</span>
+              <span className="text-zinc-500 text-xs block">FFMI, TDEE, HR-Zonen</span>
+            </div>
+            <ChevronRight size={16} className="text-zinc-600 shrink-0" />
+          </button>
+          <button onClick={() => setShowTools(true)} className="w-full flex items-center gap-3.5 p-4 hover:bg-zinc-900/50 transition-colors active:bg-zinc-800/50">
+            <div className="w-9 h-9 rounded-[10px] bg-purple-500/15 flex items-center justify-center shrink-0">
+              <Calculator size={18} className="text-purple-400" />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <span className="text-white text-sm font-medium block">Rechner</span>
+              <span className="text-zinc-500 text-xs block">1RM, FFMI, TDEE, ACWR</span>
+            </div>
+            <ChevronRight size={16} className="text-zinc-600 shrink-0" />
+          </button>
+        </div>
       </div>
 
-      {/* Membership & Subscriptions */}
-      <div className="space-y-3">
-        <h3 className="text-zinc-500 text-xs font-bold uppercase tracking-widest px-2">Mitgliedschaft & Käufe</h3>
+      {/* === EINSTELLUNGEN MENU GROUP === */}
+      <div>
+        <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest px-4 mb-2">Einstellungen</p>
+        <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800/60">
+          <button onClick={() => setSubPage('notifications')} className="w-full flex items-center gap-3.5 p-4 hover:bg-zinc-900/50 transition-colors active:bg-zinc-800/50">
+            <div className="w-9 h-9 rounded-[10px] bg-yellow-500/15 flex items-center justify-center shrink-0">
+              <Bell size={18} className="text-yellow-400" />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <span className="text-white text-sm font-medium block">Benachrichtigungen</span>
+              <span className="text-zinc-500 text-xs block">Push & E-Mail</span>
+            </div>
+            <ChevronRight size={16} className="text-zinc-600 shrink-0" />
+          </button>
+          <button onClick={toggleLanguage} className="w-full flex items-center gap-3.5 p-4 hover:bg-zinc-900/50 transition-colors active:bg-zinc-800/50">
+            <div className="w-9 h-9 rounded-[10px] bg-zinc-700/50 flex items-center justify-center shrink-0">
+              <Globe size={18} className="text-zinc-400" />
+            </div>
+            <div className="flex-1 text-left">
+              <span className="text-white text-sm font-medium block">Sprache</span>
+            </div>
+            <span className="text-zinc-500 text-sm font-medium">{language === 'en' ? 'English' : 'Deutsch'}</span>
+          </button>
+          {canSwitchRole && (
+            <div className="p-4">
+              <div className="flex items-center gap-3.5 mb-3">
+                <div className="w-9 h-9 rounded-[10px] bg-[#00FF00]/10 flex items-center justify-center shrink-0">
+                  <RefreshCw size={18} className="text-[#00FF00]" />
+                </div>
+                <span className="text-white text-sm font-medium">Ansicht wechseln</span>
+              </div>
+              <div className="flex gap-2 ml-[52px]">
+                <button
+                  onClick={() => setActiveRole(UserRole.ATHLETE)}
+                  className={`flex-1 py-2 px-3 rounded-xl font-semibold text-sm transition-all ${
+                    activeRole === UserRole.ATHLETE ? 'bg-[#00FF00] text-black' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  }`}
+                >
+                  Athlet
+                </button>
+                <button
+                  onClick={() => setActiveRole(UserRole.COACH)}
+                  className={`flex-1 py-2 px-3 rounded-xl font-semibold text-sm transition-all ${
+                    activeRole === UserRole.COACH ? 'bg-[#00FF00] text-black' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  }`}
+                >
+                  Coach
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* === MITGLIEDSCHAFT MENU GROUP === */}
+      <div>
+        <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest px-4 mb-2">Mitgliedschaft</p>
         <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl overflow-hidden">
           {subscriptions.length === 0 && purchases.length === 0 && assignedPlans.length === 0 && (
             <div className="p-4 border-b border-zinc-800 text-center">
@@ -521,55 +586,36 @@ const Profile: React.FC = () => {
         </div>
       </div>
 
-      {/* Settings */}
-      <div className="space-y-3">
-        <h3 className="text-zinc-500 text-xs font-bold uppercase tracking-widest px-2">App</h3>
-        <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800">
-          <button onClick={toggleLanguage} className="w-full flex items-center justify-between p-4 hover:bg-zinc-900 transition-colors">
-            <div className="flex items-center gap-3">
-              <Globe size={16} className="text-zinc-400" />
-              <span className="text-white font-medium text-sm">Sprache</span>
+      {/* === DATENSCHUTZ MENU GROUP === */}
+      <div>
+        <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest px-4 mb-2">Datenschutz</p>
+        <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800/60">
+          <Link to="/legal/privacy" className="flex items-center gap-3.5 p-4 hover:bg-zinc-900/50 transition-colors active:bg-zinc-800/50">
+            <div className="w-9 h-9 rounded-[10px] bg-zinc-700/50 flex items-center justify-center shrink-0">
+              <FileText size={18} className="text-zinc-400" />
             </div>
-            <span className="text-zinc-500 text-sm font-bold">{language === 'en' ? 'English' : 'Deutsch'}</span>
-          </button>
-          <div className="w-full flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <Settings size={16} className="text-zinc-400" />
-              <span className="text-zinc-500 font-medium text-sm">Version</span>
+            <div className="flex-1 text-left">
+              <span className="text-white text-sm font-medium block">Datenschutzerklärung</span>
             </div>
-            <span className="text-zinc-600 text-sm">v1.0.2</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Privacy (GDPR) */}
-      <div className="space-y-3">
-        <h3 className="text-zinc-500 text-xs font-bold uppercase tracking-widest px-2">Datenschutz</h3>
-        <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800">
-          <Link to="/legal/privacy" className="w-full flex items-center justify-between p-4 hover:bg-zinc-900 transition-colors">
-            <div className="flex items-center gap-3">
-              <FileText size={16} className="text-zinc-400" />
-              <span className="text-white font-medium text-sm">Datenschutzerklärung</span>
-            </div>
-            <ChevronRight size={14} className="text-zinc-600" />
+            <ChevronRight size={16} className="text-zinc-600 shrink-0" />
           </Link>
-          <button onClick={handleExportData} disabled={exportLoading} className="w-full flex items-center justify-between p-4 hover:bg-zinc-900 transition-colors disabled:opacity-50">
-            <div className="flex items-center gap-3">
-              <Download size={16} className="text-[#00FF00]" />
-              <div className="text-left">
-                <span className="text-white font-medium text-sm block">Daten exportieren</span>
-                <span className="text-zinc-500 text-xs">Art. 20 DSGVO</span>
-              </div>
+          <button onClick={handleExportData} disabled={exportLoading} className="w-full flex items-center gap-3.5 p-4 hover:bg-zinc-900/50 transition-colors disabled:opacity-50 active:bg-zinc-800/50">
+            <div className="w-9 h-9 rounded-[10px] bg-[#00FF00]/10 flex items-center justify-center shrink-0">
+              <Download size={18} className="text-[#00FF00]" />
             </div>
-            {exportLoading ? <Loader2 size={14} className="text-zinc-500 animate-spin" /> : <ChevronRight size={14} className="text-zinc-600" />}
+            <div className="flex-1 text-left min-w-0">
+              <span className="text-white text-sm font-medium block">Daten exportieren</span>
+              <span className="text-zinc-500 text-xs block">Art. 20 DSGVO</span>
+            </div>
+            {exportLoading ? <Loader2 size={16} className="text-zinc-500 animate-spin shrink-0" /> : <ChevronRight size={16} className="text-zinc-600 shrink-0" />}
           </button>
-          <button onClick={() => setShowDeleteConfirm(true)} className="w-full flex items-center justify-between p-4 hover:bg-red-500/10 transition-colors">
-            <div className="flex items-center gap-3">
-              <Trash2 size={16} className="text-red-500" />
-              <div className="text-left">
-                <span className="text-red-400 font-medium text-sm block">Account löschen</span>
-                <span className="text-zinc-500 text-xs">Art. 17 DSGVO</span>
-              </div>
+          <button onClick={() => setShowDeleteConfirm(true)} className="w-full flex items-center gap-3.5 p-4 hover:bg-red-500/10 transition-colors active:bg-red-500/5">
+            <div className="w-9 h-9 rounded-[10px] bg-red-500/15 flex items-center justify-center shrink-0">
+              <Trash2 size={18} className="text-red-400" />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <span className="text-red-400 text-sm font-medium block">Account löschen</span>
+              <span className="text-zinc-500 text-xs block">Art. 17 DSGVO</span>
             </div>
           </button>
         </div>
@@ -618,12 +664,18 @@ const Profile: React.FC = () => {
         </div>
       )}
 
-      {/* Logout */}
-      <div className="pt-4 pb-8">
-        <Button variant="danger" fullWidth onClick={handleLogout} className="h-14 rounded-2xl text-lg flex items-center justify-center gap-2">
-          <LogOut size={20} /> {t('nav.logout')}
-        </Button>
+      {/* === LOGOUT === */}
+      <div className="pt-2">
+        <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl overflow-hidden">
+          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2.5 p-4 text-red-400 hover:bg-red-500/10 transition-colors active:bg-red-500/5 font-medium">
+            <LogOut size={18} />
+            <span>{t('nav.logout')}</span>
+          </button>
+        </div>
       </div>
+
+      {/* Version */}
+      <p className="text-center text-zinc-600 text-xs pb-8">Greenlight Fitness · v1.0.2</p>
     </div>
   );
 };
