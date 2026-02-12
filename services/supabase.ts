@@ -57,10 +57,10 @@ export const updateProfile = async (userId: string, updates: any) => {
     .from('profiles')
     .update(updates)
     .eq('id', userId)
-    .select()
-    .single();
+    .select();
   if (error) throw error;
-  return data;
+  if (!data || data.length === 0) throw new Error('Profil konnte nicht aktualisiert werden. Bitte erneut einloggen.');
+  return data[0];
 };
 
 // ============ EXERCISES ============

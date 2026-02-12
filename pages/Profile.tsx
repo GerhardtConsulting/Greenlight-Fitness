@@ -158,10 +158,13 @@ const Profile: React.FC = () => {
 
   // --- Save Profile ---
   const handleSave = async () => {
-    if (!user) return;
+    if (!user) {
+      alert('Nicht eingeloggt. Bitte erneut anmelden.');
+      return;
+    }
     setSaving(true);
     try {
-      await updateProfile(user.id, {
+      const updates: Record<string, any> = {
         first_name: form.firstName || null,
         last_name: form.lastName || null,
         nickname: form.nickname || null,
@@ -174,14 +177,18 @@ const Profile: React.FC = () => {
         resting_heart_rate: form.restingHeartRate ? Number(form.restingHeartRate) : null,
         max_heart_rate: form.maxHeartRate ? Number(form.maxHeartRate) : null,
         onboarding_completed: true,
-      });
+      };
+      console.log('[Profile] Saving profile for', user.id, updates);
+      await updateProfile(user.id, updates);
+      console.log('[Profile] Save successful, refreshing...');
       await refreshProfile();
       setSaved(true);
       setEditing(false);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (error) {
-      console.error('Error saving profile:', error);
-      alert('Fehler beim Speichern.');
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error: any) {
+      console.error('[Profile] Save failed:', error);
+      const msg = error?.message || 'Unbekannter Fehler';
+      alert(`Fehler beim Speichern: ${msg}`);
     } finally {
       setSaving(false);
     }
