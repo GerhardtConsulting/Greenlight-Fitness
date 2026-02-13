@@ -2643,7 +2643,7 @@ export const createNotification = async (notification: {
   title: string;
   message: string;
 }) => {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('notifications')
     .insert({
       user_id: notification.user_id,
@@ -2651,11 +2651,8 @@ export const createNotification = async (notification: {
       title: notification.title,
       message: notification.message,
       read: false,
-    })
-    .select()
-    .single();
+    });
   if (error) throw error;
-  return data;
 };
 
 // ============ NOTIFICATION PREFERENCES ============
