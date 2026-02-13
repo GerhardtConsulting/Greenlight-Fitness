@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { supabase, getAssignedPlans, getExercises, autoTrackStrengthGoals, autoTrackConsistencyGoals } from '../services/supabase';
-import { ChevronLeft, ChevronRight, Plus, Check, Play, Dumbbell, X, ChevronDown, ChevronUp, Search, Trash2, Trophy, Repeat, Link, Layers, Timer, Square, Pause, ClipboardList, Pencil, CheckCircle, Bookmark, Lock, Zap, TrendingUp } from 'lucide-react';
+import { supabase, getAssignedPlans, getExercises, autoTrackStrengthGoals, autoTrackConsistencyGoals, getUserPurchases } from '../services/supabase';
+import { ChevronLeft, ChevronRight, Plus, Check, Play, Dumbbell, X, ChevronDown, ChevronUp, Search, Trash2, Trophy, Repeat, Link, Layers, Timer, Square, Pause, ClipboardList, Pencil, CheckCircle, Bookmark, Lock, Zap, TrendingUp, ShoppingBag, ArrowRight, Calendar } from 'lucide-react';
 import Button from './Button';
 import { Exercise, BlockType, WorkoutSet, WorkoutExercise, WorkoutBlock } from '../types';
 
@@ -94,6 +94,11 @@ const AthleteTrainingView: React.FC = () => {
   // Confirmation dialog for starting session while another is active
   const [startConfirm, setStartConfirm] = useState<{ workoutId: string; blockId: string } | null>(null);
   
+  // Purchased programs state
+  const [purchases, setPurchases] = useState<any[]>([]);
+  const [assignedPlans, setAssignedPlans] = useState<any[]>([]);
+  const [startProgramModal, setStartProgramModal] = useState<{ productId: string; planId: string; productTitle: string } | null>(null);
+  const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // Get week dates
   const weekDates = useMemo(() => {
@@ -118,8 +123,13 @@ const AthleteTrainingView: React.FC = () => {
     setLoading(true);
     
     try {
+      // Load purchases (products the athlete bought)
+      const purchaseData = await getUserPurchases(user.id);
+      setPurchases(purchaseData);
+
       // Load assigned plans with scheduled sessions
       const assignedPlans = await getAssignedPlans(user.id);
+      setAssignedPlans(assignedPlans);
       
       // Load ALL scheduled workouts for the week (both custom and plan-based completion records)
       const { data: scheduleEntries } = await supabase
@@ -921,7 +931,7 @@ const AthleteTrainingView: React.FC = () => {
     }
   };
 
-  const todayWorkouts = workouts[selectedDateKey] || [];
+  const selectedDayWorkouts = workouts[selectedDateKey] || [];
   const isToday = new Date().toISOString().split('T')[0] === selectedDateKey;
 
   // Check if any block in workout is active
@@ -971,8 +981,300 @@ const AthleteTrainingView: React.FC = () => {
     return { completedSessions, totalSessions, totalDuration, totalSets };
   }, [workouts, weekDates]);
 
+  // === MEINE PROGRAMME: Compute program status per purchase ===
+  const todayKey = new Date().toISOString().split('T')[0];
+  const todayWorkouts = workouts[todayKey] || [];
+  const hasPurchasedPrograms = purchases.some(p => p.products?.type === 'PLAN' || p.products?.plan_id);
+  const isModusA = hasPurchasedPrograms; // Mode A: has purchased programs
+
+  const programCards = useMemo(() => {
+    return purchases
+      .filter(p => p.products?.plan_id) // only products with a linked plan
+      .map(purchase => {
+        const product = purchase.products;
+        const planId = product.plan_id;
+        // Find assigned plan for this product/plan
+        const assigned = assignedPlans.find(
+          (ap: any) => ap.original_plan_id === planId || ap.product_id === product.id
+        );
+        // Check if today has a session from this plan
+        const todaySessionFromPlan = todayWorkouts.find(
+          w => !w.isCustom && assigned && w.id.startsWith(assigned.id)
+        );
+        
+        let status: 'not_started' | 'active' | 'today_session' = 'not_started';
+        if (todaySessionFromPlan) status = 'today_session';
+        else if (assigned && assigned.schedule && Object.keys(assigned.schedule).length > 0) status = 'active';
+        else if (assigned) status = 'active'; // assigned but maybe no schedule yet
+        
+        return {
+          purchaseId: purchase.id,
+          productId: product.id,
+          planId,
+          title: product.title,
+          thumbnail: product.thumbnail_url,
+          status,
+          assignedPlan: assigned,
+          todaySession: todaySessionFromPlan,
+        };
+      });
+  }, [purchases, assignedPlans, todayWorkouts]);
+
+  // Start a purchased program (create assigned plan)
+  const handleStartProgram = async (productId: string, planId: string) => {
+    if (!user) return;
+    try {
+      // Fetch the plan structure
+      const { data: plan } = await supabase
+        .from('plans')
+        .select('*')
+        .eq('id', planId)
+        .single();
+      if (!plan) { alert('Plan nicht gefunden.'); return; }
+
+      // Fetch weeks and sessions
+      const { data: weeks } = await supabase
+        .from('weeks')
+        .select('*')
+        .eq('plan_id', planId)
+        .order('order');
+      
+      const weekIds = (weeks || []).map((w: any) => w.id);
+      const { data: sessions } = await supabase
+        .from('sessions')
+        .select('*')
+        .in('week_id', weekIds.length > 0 ? weekIds : ['__none__'])
+        .order('order');
+
+      // Build structure
+      const structure = {
+        weeks: (weeks || []).map((w: any) => ({
+          id: w.id,
+          order: w.order,
+          focus: w.focus,
+          sessions: (sessions || [])
+            .filter((s: any) => s.week_id === w.id)
+            .map((s: any) => ({
+              id: s.id,
+              dayOfWeek: s.day_of_week,
+              title: s.title,
+              description: s.description,
+              order: s.order,
+              workoutData: s.workout_data || [],
+            })),
+        })),
+      };
+
+      // Build auto-schedule: map sessions to dates starting from startDate
+      const schedule: Record<string, string> = {};
+      const start = new Date(startDate);
+      structure.weeks.forEach((week: any) => {
+        week.sessions.forEach((session: any) => {
+          const dayOffset = session.dayOfWeek ?? session.order ?? 0;
+          const weekOffset = (week.order - 1) * 7;
+          const sessionDate = new Date(start);
+          sessionDate.setDate(sessionDate.getDate() + weekOffset + dayOffset);
+          schedule[sessionDate.toISOString().split('T')[0]] = session.id;
+        });
+      });
+
+      // Create assigned plan
+      await supabase.from('assigned_plans').insert({
+        athlete_id: user.id,
+        coach_id: plan.coach_id,
+        original_plan_id: planId,
+        product_id: productId,
+        plan_name: plan.name,
+        description: plan.description,
+        assignment_type: 'FLEX',
+        schedule_status: 'ACTIVE',
+        start_date: startDate,
+        schedule,
+        structure,
+      });
+
+      setStartProgramModal(null);
+      await loadWorkouts();
+    } catch (error) {
+      console.error('Error starting program:', error);
+      alert('Fehler beim Starten des Programms.');
+    }
+  };
+
   return (
     <div className="space-y-4 animate-in fade-in">
+      {/* === HEUTE Hero Section === */}
+      {!loading && (
+        <div className="bg-gradient-to-br from-[#1C1C1E] to-zinc-900 border border-zinc-800 rounded-2xl p-5 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#00FF00]/5 to-transparent pointer-events-none" />
+          <div className="relative z-10">
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Heute</p>
+            <p className="text-xs text-zinc-400 mb-3">
+              {new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
+
+            {(() => {
+              // Find today's first unfinished workout
+              const todayUnfinished = todayWorkouts.find(w => !w.completed);
+              const todayAny = todayWorkouts[0];
+
+              if (todayUnfinished) {
+                // Has a session today → EINHEIT STARTEN
+                return (
+                  <div>
+                    <h2 className="text-xl font-extrabold text-white mb-1">{todayUnfinished.sessionTitle}</h2>
+                    <p className="text-xs text-zinc-500 mb-3">{todayUnfinished.planName} · {todayUnfinished.workoutData?.length || 0} Blöcke</p>
+                    <button
+                      onClick={() => {
+                        // Navigate to today in the calendar and auto-start
+                        const todayIdx = weekDates.findIndex(d => d.toISOString().split('T')[0] === todayKey);
+                        if (todayIdx >= 0) setSelectedDayIndex(todayIdx);
+                        const firstBlock = todayUnfinished.workoutData?.[0];
+                        if (firstBlock) handleStartBlock(todayUnfinished.id, firstBlock.id);
+                      }}
+                      className="flex items-center gap-2 px-5 py-3 bg-[#00FF00] text-black rounded-xl font-bold hover:bg-[#00FF00]/90 transition-colors text-sm"
+                    >
+                      <Play size={18} /> EINHEIT STARTEN
+                    </button>
+                  </div>
+                );
+              } else if (todayAny?.completed) {
+                // All today's sessions completed
+                return (
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-[#00FF00]/20 flex items-center justify-center">
+                      <Check size={24} className="text-[#00FF00]" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-white">Training erledigt!</h2>
+                      <p className="text-xs text-zinc-500">{todayAny.sessionTitle} abgeschlossen</p>
+                    </div>
+                  </div>
+                );
+              } else if (isModusA) {
+                // Mode A: No session today, has programs
+                const unstartedProgram = programCards.find(p => p.status === 'not_started');
+                return (
+                  <div>
+                    <h2 className="text-lg font-bold text-white mb-1">Kein Training geplant</h2>
+                    <p className="text-xs text-zinc-500 mb-3">Starte eines deiner Programme oder füge eine eigene Session hinzu.</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {unstartedProgram && (
+                        <button
+                          onClick={() => setStartProgramModal({ productId: unstartedProgram.productId, planId: unstartedProgram.planId, productTitle: unstartedProgram.title })}
+                          className="flex items-center gap-2 px-4 py-2.5 bg-[#00FF00] text-black rounded-xl font-bold hover:bg-[#00FF00]/90 transition-colors text-sm"
+                        >
+                          <Play size={16} /> Programm starten
+                        </button>
+                      )}
+                      <button
+                        onClick={addSession}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-colors text-sm border border-zinc-700"
+                      >
+                        <Plus size={16} /> Session hinzufügen
+                      </button>
+                    </div>
+                  </div>
+                );
+              } else {
+                // Mode B: Free user, no programs
+                return (
+                  <div>
+                    <h2 className="text-lg font-bold text-white mb-1">Bereit zum Trainieren?</h2>
+                    <p className="text-xs text-zinc-500 mb-3">Erstelle deine eigene Session oder entdecke unsere Trainingspläne.</p>
+                    <div className="flex gap-2 flex-wrap">
+                      <button
+                        onClick={addSession}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-[#00FF00] text-black rounded-xl font-bold hover:bg-[#00FF00]/90 transition-colors text-sm"
+                      >
+                        <Plus size={16} /> SESSION HINZUFÜGEN
+                      </button>
+                      <button
+                        onClick={() => window.location.hash = '#/shop'}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-colors text-sm border border-zinc-700"
+                      >
+                        <ShoppingBag size={16} /> Pläne entdecken
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* === MEINE PROGRAMME (Mode A only) === */}
+      {!loading && programCards.length > 0 && (
+        <div>
+          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3 px-1">Meine Programme</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {programCards.map(card => (
+              <div
+                key={card.purchaseId}
+                className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl overflow-hidden hover:border-zinc-700 transition-all group"
+              >
+                {/* Thumbnail */}
+                {card.thumbnail ? (
+                  <div className="h-28 bg-zinc-900 overflow-hidden">
+                    <img src={card.thumbnail} alt={card.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  </div>
+                ) : (
+                  <div className="h-28 bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
+                    <Dumbbell size={32} className="text-zinc-700" />
+                  </div>
+                )}
+                
+                <div className="p-4">
+                  <h4 className="font-bold text-white text-sm truncate mb-1">{card.title}</h4>
+                  
+                  {/* Status line */}
+                  <p className="text-[11px] mb-3">
+                    {card.status === 'not_started' && <span className="text-zinc-500">Noch nicht gestartet</span>}
+                    {card.status === 'active' && <span className="text-[#00FF00]">Aktiv · Programm läuft</span>}
+                    {card.status === 'today_session' && <span className="text-[#00FF00] font-bold">Heute: Einheit verfügbar</span>}
+                  </p>
+                  
+                  {/* Action button */}
+                  {card.status === 'not_started' && (
+                    <button
+                      onClick={() => setStartProgramModal({ productId: card.productId, planId: card.planId, productTitle: card.title })}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#00FF00] text-black rounded-xl font-bold text-xs hover:bg-[#00FF00]/90 transition-colors"
+                    >
+                      <Play size={14} /> JETZT STARTEN
+                    </button>
+                  )}
+                  {card.status === 'active' && (
+                    <button
+                      onClick={() => {
+                        const todayIdx = weekDates.findIndex(d => d.toISOString().split('T')[0] === todayKey);
+                        if (todayIdx >= 0) setSelectedDayIndex(todayIdx);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-zinc-800 text-white rounded-xl font-bold text-xs hover:bg-zinc-700 transition-colors border border-zinc-700"
+                    >
+                      <ArrowRight size={14} /> FORTSETZEN
+                    </button>
+                  )}
+                  {card.status === 'today_session' && card.todaySession && (
+                    <button
+                      onClick={() => {
+                        const todayIdx = weekDates.findIndex(d => d.toISOString().split('T')[0] === todayKey);
+                        if (todayIdx >= 0) setSelectedDayIndex(todayIdx);
+                        const firstBlock = card.todaySession?.workoutData?.[0];
+                        if (firstBlock) handleStartBlock(card.todaySession!.id, firstBlock.id);
+                      }}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-[#00FF00] text-black rounded-xl font-bold text-xs hover:bg-[#00FF00]/90 transition-colors"
+                    >
+                      <Play size={14} /> EINHEIT STARTEN
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Week Navigation */}
       <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-4">
@@ -1096,18 +1398,32 @@ const AthleteTrainingView: React.FC = () => {
       {/* Workouts for Selected Day */}
       {loading ? (
         <div className="text-center py-12 text-zinc-500">Lädt...</div>
-      ) : todayWorkouts.length === 0 ? (
-        <div className="bg-[#1C1C1E] border border-zinc-800 border-dashed rounded-2xl p-8 text-center">
-          <Dumbbell size={48} className="mx-auto mb-4 text-zinc-700" />
-          <h3 className="text-lg font-bold text-white mb-2">Kein Training geplant</h3>
-          <p className="text-zinc-500 text-sm mb-4">Füge ein eigenes Workout hinzu oder plane einen gekauften Plan ein.</p>
-          <Button onClick={addSession} className="mx-auto">
-            <Plus size={18} className="mr-2" /> Session hinzufügen
-          </Button>
+      ) : selectedDayWorkouts.length === 0 ? (
+        <div className="bg-[#1C1C1E] border border-zinc-800 border-dashed rounded-2xl p-6 text-center">
+          <Dumbbell size={36} className="mx-auto mb-3 text-zinc-700" />
+          <h3 className="text-base font-bold text-white mb-1">Kein Training geplant</h3>
+          <p className="text-zinc-500 text-xs mb-4">
+            {isModusA 
+              ? 'Starte ein Programm oder füge eine eigene Session hinzu.' 
+              : 'Erstelle eine eigene Session für diesen Tag.'}
+          </p>
+          <div className="flex gap-2 justify-center flex-wrap">
+            <Button onClick={addSession} className="text-sm">
+              <Plus size={16} className="mr-1" /> Session hinzufügen
+            </Button>
+            {!isModusA && (
+              <button
+                onClick={() => window.location.hash = '#/shop'}
+                className="flex items-center gap-1 px-3 py-2 text-xs text-zinc-400 hover:text-white transition-colors"
+              >
+                <ShoppingBag size={14} /> Pläne entdecken
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
-          {todayWorkouts.map(workout => (
+          {selectedDayWorkouts.map(workout => (
             <div 
               key={workout.id}
               className={`bg-[#1C1C1E] border rounded-2xl overflow-hidden transition-all ${
@@ -2008,6 +2324,45 @@ const AthleteTrainingView: React.FC = () => {
                   Trotzdem starten
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Start Program Modal */}
+      {startProgramModal && (
+        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#1C1C1E] border border-zinc-800 w-full max-w-sm rounded-2xl p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-white">Programm starten</h3>
+              <button onClick={() => setStartProgramModal(null)} className="text-zinc-500 hover:text-white"><X size={20} /></button>
+            </div>
+            <p className="text-sm text-zinc-400 mb-4">
+              <span className="text-white font-bold">{startProgramModal.productTitle}</span> ab welchem Datum starten?
+            </p>
+            <div className="mb-4">
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1">Startdatum</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-xl px-4 py-3 focus:border-[#00FF00] outline-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStartProgramModal(null)}
+                className="flex-1 py-3 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-colors text-sm"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => handleStartProgram(startProgramModal.productId, startProgramModal.planId)}
+                className="flex-1 py-3 bg-[#00FF00] text-black rounded-xl font-bold hover:bg-[#00FF00]/90 transition-colors text-sm flex items-center justify-center gap-2"
+              >
+                <Play size={16} /> Starten
+              </button>
             </div>
           </div>
         </div>
