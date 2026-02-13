@@ -169,9 +169,19 @@ const Profile: React.FC = () => {
   };
 
   const openSchedulePicker = (plan: any) => {
+    const hasSchedule = plan.schedule && Object.keys(plan.schedule).length > 0;
     const defaultDays = getDefaultDays(plan);
     setSelectedDays(defaultDays);
-    setScheduleStartDate(plan.start_date || new Date().toISOString().split('T')[0]);
+    if (hasSchedule) {
+      // Replan mode: start from next Monday
+      const now = new Date();
+      const day = now.getDay();
+      const nextMonday = new Date(now);
+      nextMonday.setDate(now.getDate() + ((8 - day) % 7 || 7));
+      setScheduleStartDate(nextMonday.toISOString().split('T')[0]);
+    } else {
+      setScheduleStartDate(plan.start_date || new Date().toISOString().split('T')[0]);
+    }
     setSchedulePicker(plan);
   };
 
@@ -192,13 +202,40 @@ const Profile: React.FC = () => {
     if (selectedDays.length !== sessionsPerWeek) return;
     setGeneratingSchedule(true);
     try {
-      const schedule: Record<string, string> = {};
+      const isReplan = plan.schedule && Object.keys(plan.schedule).length > 0;
+      const replanCutoff = scheduleStartDate; // Everything before this stays
+
+      // Preserve past sessions when replanning
+      const preservedSchedule: Record<string, string> = {};
+      if (isReplan && plan.schedule) {
+        Object.entries(plan.schedule).forEach(([dateKey, sessionId]) => {
+          if (dateKey < replanCutoff) {
+            preservedSchedule[dateKey] = sessionId as string;
+          }
+        });
+      }
+
+      // Calculate how many weeks are already covered by preserved sessions
+      const preservedWeekCount = isReplan ? new Set(
+        Object.keys(preservedSchedule).map(d => {
+          const date = new Date(d);
+          const day = date.getDay();
+          const monday = new Date(date);
+          monday.setDate(date.getDate() - ((day + 6) % 7));
+          return monday.toISOString().split('T')[0];
+        })
+      ).size : 0;
+
+      // Generate new schedule from replan start date (or original start)
+      const newSchedule: Record<string, string> = {};
       const start = new Date(scheduleStartDate);
       const startDay = start.getDay();
       const mondayOffset = startDay === 0 ? -6 : 1 - startDay;
       const weekStart = new Date(start);
       weekStart.setDate(weekStart.getDate() + mondayOffset);
-      plan.structure.weeks.forEach((week: any, weekIndex: number) => {
+
+      const remainingWeeks = plan.structure.weeks.slice(preservedWeekCount);
+      remainingWeeks.forEach((week: any, weekIndex: number) => {
         const sessions = [...(week.sessions || [])].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
         sessions.forEach((session: any, sessionIndex: number) => {
           if (sessionIndex >= selectedDays.length) return;
@@ -206,12 +243,14 @@ const Profile: React.FC = () => {
           const sessionDate = new Date(weekStart);
           sessionDate.setDate(sessionDate.getDate() + (weekIndex * 7) + targetDay);
           const dateKey = sessionDate.toISOString().split('T')[0];
-          schedule[dateKey] = session.id;
+          newSchedule[dateKey] = session.id;
         });
       });
+
+      const finalSchedule = { ...preservedSchedule, ...newSchedule };
       const { error } = await supabase
         .from('assigned_plans')
-        .update({ schedule, schedule_status: 'ACTIVE' })
+        .update({ schedule: finalSchedule, schedule_status: 'ACTIVE' })
         .eq('id', plan.id);
       if (error) throw error;
       setSchedulePicker(null);
@@ -1137,45 +1176,59 @@ const Profile: React.FC = () => {
       )}
 
       {/* === SCHEDULE PICKER MODAL === */}
-      {schedulePicker && (
-        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-[#1C1C1E] border border-zinc-800 w-full max-w-md rounded-2xl p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-white">Trainingstage festlegen</h3>
-              <button onClick={() => setSchedulePicker(null)} className="text-zinc-500 hover:text-white"><X size={20} /></button>
-            </div>
-            <p className="text-sm text-zinc-400 mb-1">{schedulePicker.plan_name}</p>
-            <p className="text-xs text-zinc-500 mb-4">Wähle {getSessionsPerWeek(schedulePicker)} Tage pro Woche für deine Sessions.</p>
-            <div className="mb-4">
-              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1">Startdatum</label>
-              <input type="date" value={scheduleStartDate} onChange={(e) => setScheduleStartDate(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-xl px-4 py-3 focus:border-[#00FF00] outline-none text-sm" />
-            </div>
-            <div className="grid grid-cols-7 gap-2 mb-6">
-              {DAY_LABELS.map((label, key) => {
-                const isSelected = selectedDays.includes(key);
-                const isFull = selectedDays.length >= getSessionsPerWeek(schedulePicker) && !isSelected;
-                return (
-                  <button key={key} onClick={() => toggleDay(key)} disabled={isFull}
-                    className={`flex flex-col items-center py-3 rounded-xl text-xs font-bold transition-all ${
-                      isSelected ? 'bg-[#00FF00] text-black'
-                        : isFull ? 'bg-zinc-900 text-zinc-700 cursor-not-allowed'
-                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
-                    }`}>{label}</button>
-                );
-              })}
-            </div>
-            <p className="text-xs text-zinc-500 text-center mb-4">{selectedDays.length}/{getSessionsPerWeek(schedulePicker)} Tage ausgewählt</p>
-            <div className="flex gap-2">
-              <button onClick={() => setSchedulePicker(null)} className="flex-1 py-3 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-colors text-sm">Abbrechen</button>
-              <button onClick={handleGenerateSchedule} disabled={selectedDays.length !== getSessionsPerWeek(schedulePicker) || generatingSchedule}
-                className="flex-1 py-3 bg-[#00FF00] text-black rounded-xl font-bold hover:bg-[#00FF00]/90 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                {generatingSchedule ? 'Wird erstellt...' : 'Bestätigen'}
-              </button>
+      {schedulePicker && (() => {
+        const isReplan = schedulePicker.schedule && Object.keys(schedulePicker.schedule).length > 0;
+        return (
+          <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-[#1C1C1E] border border-zinc-800 w-full max-w-md rounded-2xl p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-white">{isReplan ? 'Trainingstage umplanen' : 'Trainingstage festlegen'}</h3>
+                <button onClick={() => setSchedulePicker(null)} className="text-zinc-500 hover:text-white"><X size={20} /></button>
+              </div>
+              <p className="text-sm text-zinc-400 mb-1">{schedulePicker.plan_name}</p>
+              <p className="text-xs text-zinc-500 mb-4">
+                {isReplan ? `Neue Tage gelten ab ${new Date(scheduleStartDate).toLocaleDateString('de-DE', { day: '2-digit', month: 'long' })}. Bisherige Sessions bleiben erhalten.` : `Wähle ${getSessionsPerWeek(schedulePicker)} Tage pro Woche für deine Sessions.`}
+              </p>
+              {!isReplan && (
+                <div className="mb-4">
+                  <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1">Startdatum</label>
+                  <input type="date" value={scheduleStartDate} onChange={(e) => setScheduleStartDate(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-xl px-4 py-3 focus:border-[#00FF00] outline-none text-sm" />
+                </div>
+              )}
+              {isReplan && (
+                <div className="mb-4 p-3 bg-blue-500/5 border border-blue-500/20 rounded-xl">
+                  <p className="text-[10px] text-blue-400 flex items-center gap-1.5">
+                    <AlertCircle size={12} /> Änderungen gelten ab nächster Woche ({new Date(scheduleStartDate).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short' })}). Vergangene Sessions werden nicht verändert.
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-7 gap-2 mb-6">
+                {DAY_LABELS.map((label, key) => {
+                  const isSelected = selectedDays.includes(key);
+                  const isFull = selectedDays.length >= getSessionsPerWeek(schedulePicker) && !isSelected;
+                  return (
+                    <button key={key} onClick={() => toggleDay(key)} disabled={isFull}
+                      className={`flex flex-col items-center py-3 rounded-xl text-xs font-bold transition-all ${
+                        isSelected ? 'bg-[#00FF00] text-black'
+                          : isFull ? 'bg-zinc-900 text-zinc-700 cursor-not-allowed'
+                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                      }`}>{label}</button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-zinc-500 text-center mb-4">{selectedDays.length}/{getSessionsPerWeek(schedulePicker)} Tage ausgewählt</p>
+              <div className="flex gap-2">
+                <button onClick={() => setSchedulePicker(null)} className="flex-1 py-3 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-colors text-sm">Abbrechen</button>
+                <button onClick={handleGenerateSchedule} disabled={selectedDays.length !== getSessionsPerWeek(schedulePicker) || generatingSchedule}
+                  className="flex-1 py-3 bg-[#00FF00] text-black rounded-xl font-bold hover:bg-[#00FF00]/90 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                  {generatingSchedule ? 'Wird erstellt...' : isReplan ? 'Umplanen' : 'Bestätigen'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* === PAUSE CONFIRMATION MODAL === */}
       {pauseModal && (

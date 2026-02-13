@@ -218,10 +218,15 @@ const CoachCalendarSetup: React.FC = () => {
     setSaving(true);
     try {
       const cal = await createCoachCalendar({ coach_id: user.id, name: newCalName.trim(), description: newCalDesc.trim() || undefined, slot_duration_minutes: newCalDuration, buffer_minutes: newCalBuffer, max_advance_days: newCalAdvance, min_notice_hours: newCalNotice });
+      if (cal) setEnabledCalendarIds(prev => new Set([...prev, cal.id]));
       setSuccess('Kalender erstellt!'); setShowCreateForm(false);
       resetWizard();
-      await fetchCalendars();
-      if (cal) { setSelectedCalendar(cal); setEnabledCalendarIds(prev => new Set([...prev, cal.id])); }
+      const freshData = await getCoachCalendars(user.id);
+      setCalendars(freshData);
+      if (cal) {
+        const freshCal = freshData.find((c: any) => c.id === cal.id) || cal;
+        setSelectedCalendar(freshCal);
+      }
     } catch (e: any) { setError(e.message); }
     finally { setSaving(false); }
   };
@@ -240,10 +245,17 @@ const CoachCalendarSetup: React.FC = () => {
       if (cal && wizardAvail.length > 0) {
         await setCalendarAvailability(cal.id, wizardAvail);
       }
+      // Pre-enable the new calendar so it's visible immediately after fetch
+      if (cal) setEnabledCalendarIds(prev => new Set([...prev, cal.id]));
       setSuccess('Kalender erstellt mit Verfügbarkeit!'); setShowCreateForm(false);
       resetWizard();
-      await fetchCalendars();
-      if (cal) { setSelectedCalendar(cal); setEnabledCalendarIds(prev => new Set([...prev, cal.id])); }
+      // Fetch fresh list — will include the new calendar
+      const freshData = await getCoachCalendars(user.id);
+      setCalendars(freshData);
+      if (cal) {
+        const freshCal = freshData.find((c: any) => c.id === cal.id) || cal;
+        setSelectedCalendar(freshCal);
+      }
     } catch (e: any) { setError(e.message); }
     finally { setSaving(false); }
   };

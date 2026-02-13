@@ -93,6 +93,9 @@ const AthleteTrainingView: React.FC = () => {
   const [moveModal, setMoveModal] = useState<{ workoutId: string; currentDate: string } | null>(null);
   const [moveTargetDate, setMoveTargetDate] = useState('');
   
+  // Delete confirmation modal
+  const [deleteConfirm, setDeleteConfirm] = useState<{ workoutId: string; title: string } | null>(null);
+  
   // Confirmation dialog for starting session while another is active
   const [startConfirm, setStartConfirm] = useState<{ workoutId: string; blockId: string } | null>(null);
   
@@ -1288,19 +1291,19 @@ const AthleteTrainingView: React.FC = () => {
                     )}
                   </div>
                   
-                  {/* Session actions: Move / Delete for custom sessions */}
+                  {/* Session actions: Move / Delete for custom sessions — right-aligned */}
                   {workout.isCustom && !hasActiveBlock(workout) && (
-                    <div className="flex items-center gap-1 mr-2">
+                    <div className="flex items-center gap-0.5 ml-auto shrink-0">
                       <button
                         onClick={() => { setMoveModal({ workoutId: workout.id, currentDate: workout.date }); setMoveTargetDate(''); }}
-                        className="p-1.5 text-zinc-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                        className="p-2 text-zinc-600 hover:text-blue-400 hover:bg-blue-500/10 rounded-xl transition-colors"
                         title="Session verschieben"
                       >
                         <ChevronRight size={16} />
                       </button>
                       <button
-                        onClick={() => { if (confirm('Session wirklich löschen?')) deleteSession(workout.id); }}
-                        className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                        onClick={() => setDeleteConfirm({ workoutId: workout.id, title: workout.sessionTitle })}
+                        className="p-2 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors"
                         title="Session löschen"
                       >
                         <Trash2 size={14} />
@@ -2077,6 +2080,32 @@ const AthleteTrainingView: React.FC = () => {
                 className="w-full py-2 text-zinc-500 text-sm hover:text-white transition-colors"
               >
                 Später
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in" onClick={() => setDeleteConfirm(null)}>
+          <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-5 text-center space-y-3">
+              <div className="w-12 h-12 mx-auto bg-red-500/10 rounded-full flex items-center justify-center">
+                <Trash2 size={24} className="text-red-400" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Session löschen?</h3>
+              <p className="text-sm text-zinc-400">
+                „{deleteConfirm.title}" wird unwiderruflich gelöscht. Alle erfassten Daten dieser Session gehen verloren.
+              </p>
+            </div>
+            <div className="flex gap-2 p-4 border-t border-zinc-800">
+              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-3 bg-zinc-800 text-white rounded-xl font-medium hover:bg-zinc-700 transition-colors text-sm">
+                Abbrechen
+              </button>
+              <button onClick={() => { deleteSession(deleteConfirm.workoutId); setDeleteConfirm(null); }}
+                className="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-400 transition-colors text-sm flex items-center justify-center gap-2">
+                <Trash2 size={14} /> Löschen
               </button>
             </div>
           </div>
