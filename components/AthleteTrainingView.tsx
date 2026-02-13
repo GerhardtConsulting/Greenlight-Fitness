@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { supabase, getAssignedPlans, getExercises, autoTrackStrengthGoals, autoTrackConsistencyGoals } from '../services/supabase';
-import { ChevronLeft, ChevronRight, Plus, Check, Play, Dumbbell, X, ChevronDown, ChevronUp, Search, Trash2, Trophy, Repeat, Link, Layers, Timer, Square, Pause, ClipboardList, Pencil, CheckCircle, Bookmark, Lock, Zap, TrendingUp, ShoppingBag } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Check, Play, Dumbbell, X, ChevronDown, ChevronUp, Search, Trash2, Trophy, Repeat, Link, Layers, Timer, Square, Pause, ClipboardList, Pencil, CheckCircle, Bookmark, Lock, Zap, TrendingUp } from 'lucide-react';
 import Button from './Button';
 import { Exercise, BlockType, WorkoutSet, WorkoutExercise, WorkoutBlock } from '../types';
 
@@ -1111,235 +1111,16 @@ const AthleteTrainingView: React.FC = () => {
     }
   };
 
+  // Auto-open schedule picker for pending plans on first load
+  useEffect(() => {
+    if (!loading && pendingPlans.length > 0 && !schedulePicker) {
+      openSchedulePicker(pendingPlans[0]);
+    }
+  }, [loading, pendingPlans.length]);
+
   return (
     <div className="space-y-4 animate-in fade-in">
-      {/* === Today Hero Section === */}
-      {!loading && (
-        <div className="bg-gradient-to-br from-[#1C1C1E] to-zinc-900 border border-zinc-800 rounded-2xl p-5 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-[#00FF00]/5 to-transparent pointer-events-none" />
-          <div className="relative z-10">
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">{t('training.today')}</p>
-            <p className="text-xs text-zinc-400 mb-3">
-              {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
-            </p>
-
-            {(() => {
-              const todayUnfinished = todayWorkouts.find(w => !w.completed);
-              const todayAny = todayWorkouts[0];
-
-              if (todayUnfinished) {
-                return (
-                  <div>
-                    <h2 className="text-xl font-extrabold text-white mb-1">{todayUnfinished.sessionTitle}</h2>
-                    <p className="text-xs text-zinc-500 mb-3">{todayUnfinished.planName} · {t('training.blocks', { count: String(todayUnfinished.workoutData?.length || 0) })}</p>
-                    <button
-                      onClick={() => {
-                        const todayIdx = weekDates.findIndex(d => d.toISOString().split('T')[0] === todayKey);
-                        if (todayIdx >= 0) setSelectedDayIndex(todayIdx);
-                        const firstBlock = todayUnfinished.workoutData?.[0];
-                        if (firstBlock) handleStartBlock(todayUnfinished.id, firstBlock.id);
-                      }}
-                      className="flex items-center gap-2 px-5 py-3 bg-[#00FF00] text-black rounded-xl font-bold hover:bg-[#00FF00]/90 transition-colors text-sm"
-                    >
-                      <Play size={18} /> {t('training.startUnit')}
-                    </button>
-                  </div>
-                );
-              } else if (todayAny?.completed) {
-                return (
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-[#00FF00]/20 flex items-center justify-center">
-                      <Check size={24} className="text-[#00FF00]" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-bold text-white">{t('training.trainingDone')}</h2>
-                      <p className="text-xs text-zinc-500">{t('training.sessionCompleted', { name: todayAny.sessionTitle })}</p>
-                    </div>
-                  </div>
-                );
-              } else {
-                return (
-                  <div>
-                    <h2 className="text-lg font-bold text-white mb-1">{t('training.readyToTrain')}</h2>
-                    <p className="text-xs text-zinc-500 mb-3">{t('training.modeBEmpty')}</p>
-                    <div className="flex gap-2 flex-wrap">
-                      <button
-                        onClick={addSession}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-[#00FF00] text-black rounded-xl font-bold hover:bg-[#00FF00]/90 transition-colors text-sm"
-                      >
-                        <Plus size={16} /> {t('training.addSession')}
-                      </button>
-                      <button
-                        onClick={() => window.location.hash = '#/shop'}
-                        className="flex items-center gap-2 px-4 py-2.5 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-colors text-sm border border-zinc-700"
-                      >
-                        <ShoppingBag size={16} /> {t('training.discoverPlans')}
-                      </button>
-                    </div>
-                  </div>
-                );
-              }
-            })()}
-          </div>
-        </div>
-      )}
-
-      {/* === Pending Plans: Need Schedule Setup === */}
-      {!loading && pendingPlans.length > 0 && pendingPlans.map((plan: any) => (
-        <div key={plan.id} className="bg-gradient-to-r from-amber-500/10 to-amber-500/5 border border-amber-500/30 rounded-2xl p-4">
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0 mt-0.5">
-              <ClipboardList size={20} className="text-amber-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-bold text-white mb-0.5">{plan.plan_name}</h3>
-              <p className="text-xs text-zinc-400 mb-2">
-                {t('dashboard.pendingScheduleDesc')}
-              </p>
-              <p className="text-[11px] text-zinc-500 mb-3">
-                {t('dashboard.daysPerWeek')} <span className="text-white font-bold">{getSessionsPerWeek(plan)}</span>
-              </p>
-              <button
-                onClick={() => openSchedulePicker(plan)}
-                className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-black rounded-xl font-bold text-xs hover:bg-amber-400 transition-colors"
-              >
-                <Play size={14} /> {t('dashboard.confirmSchedule')}
-              </button>
-            </div>
-          </div>
-        </div>
-      ))}
-
-      {/* === Active & Paused Plans Management === */}
-      {!loading && (activePlans.length > 0 || pausedPlans.length > 0) && (
-        <div className="space-y-2">
-          {activePlans.map((plan: any) => (
-            <div key={plan.id} className="flex items-center justify-between bg-[#1C1C1E] border border-zinc-800 rounded-xl px-4 py-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-2 h-2 rounded-full bg-[#00FF00] shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-white truncate">{plan.plan_name}</p>
-                  <p className="text-[10px] text-zinc-500">{t('dashboard.active')} · {getSessionsPerWeek(plan)}x/{t('dashboard.week')}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => openSchedulePicker(plan)}
-                  title={t('dashboard.scheduleSession')}
-                  className="p-1.5 text-zinc-500 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors"
-                >
-                  <Pencil size={14} />
-                </button>
-                <button
-                  onClick={() => handlePausePlan(plan.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-zinc-400 bg-zinc-800 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors"
-                >
-                  <Pause size={12} /> {t('common.cancel')}
-                </button>
-              </div>
-            </div>
-          ))}
-          {pausedPlans.map((plan: any) => (
-            <div key={plan.id} className="flex items-center justify-between bg-[#1C1C1E] border border-zinc-800/50 rounded-xl px-4 py-3 opacity-70">
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-2 h-2 rounded-full bg-zinc-600 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-zinc-400 truncate">{plan.plan_name}</p>
-                  <p className="text-[10px] text-zinc-600">Pausiert</p>
-                </div>
-              </div>
-              <button
-                onClick={() => handleResumePlan(plan.id)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#00FF00] bg-[#00FF00]/10 rounded-lg hover:bg-[#00FF00]/20 transition-colors"
-              >
-                <Play size={12} /> {t('training.continue')}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* === Schedule Picker Modal === */}
-      {schedulePicker && (
-        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-[#1C1C1E] border border-zinc-800 w-full max-w-md rounded-2xl p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-white">{t('dashboard.scheduleSession')}</h3>
-              <button onClick={() => setSchedulePicker(null)} className="text-zinc-500 hover:text-white"><X size={20} /></button>
-            </div>
-            
-            <p className="text-sm text-zinc-400 mb-1">{schedulePicker.plan_name}</p>
-            <p className="text-xs text-zinc-500 mb-4">
-              {t('dashboard.selectDays', { count: String(getSessionsPerWeek(schedulePicker)) })}
-            </p>
-
-            {/* Start Date */}
-            <div className="mb-4">
-              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1">{t('training.startDate')}</label>
-              <input
-                type="date"
-                value={scheduleStartDate}
-                onChange={(e) => setScheduleStartDate(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-xl px-4 py-3 focus:border-[#00FF00] outline-none text-sm"
-              />
-            </div>
-            
-            {/* Day Picker */}
-            <div className="grid grid-cols-7 gap-2 mb-6">
-              {[
-                { key: 0, label: t('dashboard.monday') },
-                { key: 1, label: t('dashboard.tuesday') },
-                { key: 2, label: t('dashboard.wednesday') },
-                { key: 3, label: t('dashboard.thursday') },
-                { key: 4, label: t('dashboard.friday') },
-                { key: 5, label: t('dashboard.saturday') },
-                { key: 6, label: t('dashboard.sunday') },
-              ].map(({ key, label }) => {
-                const isSelected = selectedDays.includes(key);
-                const isFull = selectedDays.length >= getSessionsPerWeek(schedulePicker) && !isSelected;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => toggleDay(key)}
-                    disabled={isFull}
-                    className={`flex flex-col items-center py-3 rounded-xl text-xs font-bold transition-all ${
-                      isSelected
-                        ? 'bg-[#00FF00] text-black'
-                        : isFull
-                          ? 'bg-zinc-900 text-zinc-700 cursor-not-allowed'
-                          : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-
-            <p className="text-xs text-zinc-500 text-center mb-4">
-              {selectedDays.length}/{getSessionsPerWeek(schedulePicker)} {t('dashboard.day')}
-            </p>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => setSchedulePicker(null)}
-                className="flex-1 py-3 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-colors text-sm"
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={handleGenerateSchedule}
-                disabled={selectedDays.length !== getSessionsPerWeek(schedulePicker) || generatingSchedule}
-                className="flex-1 py-3 bg-[#00FF00] text-black rounded-xl font-bold hover:bg-[#00FF00]/90 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {generatingSchedule ? t('dashboard.generatingSchedule') : t('dashboard.confirmSchedule')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Week Navigation */}
+      {/* Week Navigation — FIRST (Calendar is top priority) */}
       <div className="bg-[#1C1C1E] border border-zinc-800 rounded-2xl p-4">
         <div className="flex items-center justify-between mb-4">
           <button 
@@ -2303,6 +2084,105 @@ const AthleteTrainingView: React.FC = () => {
                 className="w-full py-2 text-zinc-500 text-sm hover:text-white transition-colors"
               >
                 Später
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === Plan Management (compact, below workouts) === */}
+      {!loading && (pendingPlans.length > 0 || activePlans.length > 0 || pausedPlans.length > 0) && (
+        <div className="border-t border-zinc-800/50 pt-4 space-y-2">
+          <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest px-1 mb-1">{t('training.myPrograms')}</p>
+          {pendingPlans.map((plan: any) => (
+            <div key={plan.id} className="flex items-center justify-between bg-zinc-900/50 border border-amber-500/20 rounded-xl px-3 py-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                <p className="text-xs font-medium text-zinc-300 truncate">{plan.plan_name}</p>
+              </div>
+              <button
+                onClick={() => openSchedulePicker(plan)}
+                className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg hover:bg-amber-500/20 transition-colors shrink-0"
+              >
+                {t('dashboard.confirmSchedule')}
+              </button>
+            </div>
+          ))}
+          {activePlans.map((plan: any) => (
+            <div key={plan.id} className="flex items-center justify-between bg-zinc-900/50 border border-zinc-800/50 rounded-xl px-3 py-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#00FF00] shrink-0" />
+                <p className="text-xs font-medium text-zinc-300 truncate">{plan.plan_name}</p>
+                <span className="text-[9px] text-zinc-600">{getSessionsPerWeek(plan)}x/{t('dashboard.week')}</span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => openSchedulePicker(plan)} className="p-1 text-zinc-600 hover:text-white rounded transition-colors"><Pencil size={12} /></button>
+                <button onClick={() => handlePausePlan(plan.id)} className="p-1 text-zinc-600 hover:text-amber-400 rounded transition-colors"><Pause size={12} /></button>
+              </div>
+            </div>
+          ))}
+          {pausedPlans.map((plan: any) => (
+            <div key={plan.id} className="flex items-center justify-between bg-zinc-900/30 border border-zinc-800/30 rounded-xl px-3 py-2.5 opacity-60">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-1.5 h-1.5 rounded-full bg-zinc-600 shrink-0" />
+                <p className="text-xs font-medium text-zinc-500 truncate">{plan.plan_name}</p>
+              </div>
+              <button
+                onClick={() => handleResumePlan(plan.id)}
+                className="text-[10px] font-bold text-[#00FF00] px-2.5 py-1 rounded-lg hover:bg-[#00FF00]/10 transition-colors shrink-0"
+              >
+                <Play size={10} className="inline mr-1" />{t('training.continue')}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* === Schedule Picker Modal (popup) === */}
+      {schedulePicker && (
+        <div className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#1C1C1E] border border-zinc-800 w-full max-w-md rounded-2xl p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-white">{t('dashboard.scheduleSession')}</h3>
+              <button onClick={() => setSchedulePicker(null)} className="text-zinc-500 hover:text-white"><X size={20} /></button>
+            </div>
+            <p className="text-sm text-zinc-400 mb-1">{schedulePicker.plan_name}</p>
+            <p className="text-xs text-zinc-500 mb-4">
+              {t('dashboard.selectDays', { count: String(getSessionsPerWeek(schedulePicker)) })}
+            </p>
+            <div className="mb-4">
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider block mb-1">{t('training.startDate')}</label>
+              <input type="date" value={scheduleStartDate} onChange={(e) => setScheduleStartDate(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-xl px-4 py-3 focus:border-[#00FF00] outline-none text-sm" />
+            </div>
+            <div className="grid grid-cols-7 gap-2 mb-6">
+              {[
+                { key: 0, label: t('dashboard.monday') },
+                { key: 1, label: t('dashboard.tuesday') },
+                { key: 2, label: t('dashboard.wednesday') },
+                { key: 3, label: t('dashboard.thursday') },
+                { key: 4, label: t('dashboard.friday') },
+                { key: 5, label: t('dashboard.saturday') },
+                { key: 6, label: t('dashboard.sunday') },
+              ].map(({ key, label }) => {
+                const isSelected = selectedDays.includes(key);
+                const isFull = selectedDays.length >= getSessionsPerWeek(schedulePicker) && !isSelected;
+                return (
+                  <button key={key} onClick={() => toggleDay(key)} disabled={isFull}
+                    className={`flex flex-col items-center py-3 rounded-xl text-xs font-bold transition-all ${
+                      isSelected ? 'bg-[#00FF00] text-black'
+                        : isFull ? 'bg-zinc-900 text-zinc-700 cursor-not-allowed'
+                        : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                    }`}>{label}</button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-zinc-500 text-center mb-4">{selectedDays.length}/{getSessionsPerWeek(schedulePicker)} {t('dashboard.day')}</p>
+            <div className="flex gap-2">
+              <button onClick={() => setSchedulePicker(null)} className="flex-1 py-3 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-colors text-sm">{t('common.cancel')}</button>
+              <button onClick={handleGenerateSchedule} disabled={selectedDays.length !== getSessionsPerWeek(schedulePicker) || generatingSchedule}
+                className="flex-1 py-3 bg-[#00FF00] text-black rounded-xl font-bold hover:bg-[#00FF00]/90 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                {generatingSchedule ? t('dashboard.generatingSchedule') : t('dashboard.confirmSchedule')}
               </button>
             </div>
           </div>
