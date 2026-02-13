@@ -11,7 +11,7 @@ import {
   Users, Search, UserPlus, X, Check, Link2, Unlink, ChevronDown, User,
   Dumbbell, Shield, ShieldCheck, Gift, Mail, Bell, MessageCircle, Filter,
   ArrowUpDown, Loader2, Calendar, Package, AlertCircle, Eye, MoreVertical,
-  Ban, Trash2, ShoppingCart, ClipboardList, CreditCard
+  Ban, Trash2, ShoppingCart, ClipboardList, CreditCard, Unlock
 } from 'lucide-react';
 import { showLocalNotification } from '../services/notifications';
 import ConfirmActionModal, { ConfirmActionConfig, getRoleChangeConfig, getUnassignConfig, getRevokePurchaseConfig, getRevokePlanConfig } from '../components/ConfirmActionModal';
@@ -91,6 +91,13 @@ const AdminCRM: React.FC = () => {
 
   // Detail Drawer
   const [detailUser, setDetailUser] = useState<CRMUser | null>(null);
+
+  // Product Approval (Freischalten)
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [approvalUser, setApprovalUser] = useState<CRMUser | null>(null);
+  const [approvalProductId, setApprovalProductId] = useState('');
+  const [approvalReason, setApprovalReason] = useState('');
+  const [approving, setApproving] = useState(false);
 
   // Role change
   const [changingRole, setChangingRole] = useState<string | null>(null);
@@ -331,6 +338,46 @@ const AdminCRM: React.FC = () => {
         alert("Fehler beim Entziehen des Plans");
       }
     });
+  };
+
+  // --- Product Approval (Freischalten) ---
+  const consultationProducts = products.filter((p: any) => p.requires_consultation);
+
+  const openApprovalModal = (u: CRMUser) => {
+    setApprovalUser(u);
+    setApprovalProductId(consultationProducts.length === 1 ? consultationProducts[0].id : '');
+    setApprovalReason('');
+    setShowApprovalModal(true);
+  };
+
+  const handleApproveProduct = async () => {
+    if (!approvalUser || !approvalProductId || !user) return;
+    setApproving(true);
+    try {
+      await grantCoachingManually(approvalUser.id, approvalProductId, user.id, approvalReason || 'Vorabgespräch abgeschlossen');
+
+      const productName = products.find((p: any) => p.id === approvalProductId)?.title || 'Produkt';
+      showLocalNotification('Produkt freigeschaltet', {
+        body: `${getUserName(approvalUser)} kann jetzt "${productName}" kaufen.`,
+        tag: 'product-approved',
+      });
+
+      // Notify the athlete
+      createNotification({
+        user_id: approvalUser.id,
+        type: 'purchase',
+        title: 'Produkt freigeschaltet',
+        message: `Du wurdest für "${productName}" freigeschaltet. Du kannst es jetzt im Shop kaufen.`,
+      }).catch(err => console.error('Approval notification failed:', err));
+
+      await fetchData();
+      setShowApprovalModal(false);
+    } catch (error: any) {
+      console.error("Error approving product:", error);
+      alert("Fehler beim Freischalten: " + (error.message || ''));
+    } finally {
+      setApproving(false);
+    }
   };
 
   const handleRoleChange = (userId: string, newRole: string) => {
@@ -921,11 +968,22 @@ const AdminCRM: React.FC = () => {
               </div>
 
               {/* Quick Actions */}
-              {isAdmin ? (
+              {(isAdmin || isCoach) && (
                 <div>
                   <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3">Aktionen</h4>
                   <div className="space-y-2">
-                    {detailUser.role === 'ATHLETE' && !getActiveCoach(detailUser) && (
+                    {/* Product Approval — for athletes, both Admin and Coach (own athletes) */}
+                    {detailUser.role === 'ATHLETE' && consultationProducts.length > 0 && (isAdmin || isOwnAthlete(detailUser)) && (
+                      <button
+                        onClick={() => { setDetailUser(null); openApprovalModal(detailUser); }}
+                        className="w-full flex items-center gap-2 px-4 py-3 bg-amber-500/10 text-amber-400 rounded-xl hover:bg-amber-500/20 transition-colors text-sm font-bold"
+                      >
+                        <Unlock size={16} /> Produkt freischalten
+                      </button>
+                    )}
+
+                    {/* Admin-only actions */}
+                    {isAdmin && detailUser.role === 'ATHLETE' && !getActiveCoach(detailUser) && (
                       <button
                         onClick={() => { setDetailUser(null); openAssignModal(detailUser); }}
                         className="w-full flex items-center gap-2 px-4 py-3 bg-[#00FF00]/10 text-[#00FF00] rounded-xl hover:bg-[#00FF00]/20 transition-colors text-sm font-bold"
@@ -933,7 +991,7 @@ const AdminCRM: React.FC = () => {
                         <UserPlus size={16} /> Coach zuweisen
                       </button>
                     )}
-                    {detailUser.role === 'ATHLETE' && getActiveCoach(detailUser) && (
+                    {isAdmin && detailUser.role === 'ATHLETE' && getActiveCoach(detailUser) && (
                       <button
                         onClick={() => { setDetailUser(null); openAssignModal(detailUser); }}
                         className="w-full flex items-center gap-2 px-4 py-3 bg-blue-500/10 text-blue-400 rounded-xl hover:bg-blue-500/20 transition-colors text-sm font-bold"
@@ -941,25 +999,21 @@ const AdminCRM: React.FC = () => {
                         <Link2 size={16} /> Anderen Coach zuweisen
                       </button>
                     )}
-                    <div className="flex gap-2">
-                      {['ATHLETE', 'COACH', 'ADMIN'].filter(r => r !== detailUser.role).map(r => (
-                        <button
-                          key={r}
-                          onClick={() => handleRoleChange(detailUser.id, r)}
-                          disabled={changingRole === detailUser.id}
-                          className="flex-1 px-3 py-2.5 bg-zinc-900 border border-zinc-800 text-zinc-400 text-xs rounded-xl hover:border-zinc-600 hover:text-white transition-colors"
-                        >
-                          → {r}
-                        </button>
-                      ))}
-                    </div>
+                    {isAdmin && (
+                      <div className="flex gap-2">
+                        {['ATHLETE', 'COACH', 'ADMIN'].filter(r => r !== detailUser.role).map(r => (
+                          <button
+                            key={r}
+                            onClick={() => handleRoleChange(detailUser.id, r)}
+                            disabled={changingRole === detailUser.id}
+                            className="flex-1 px-3 py-2.5 bg-zinc-900 border border-zinc-800 text-zinc-400 text-xs rounded-xl hover:border-zinc-600 hover:text-white transition-colors"
+                          >
+                            → {r}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ) : (
-                <div className="p-4 bg-blue-500/5 border border-blue-500/20 rounded-xl">
-                  <p className="text-xs text-blue-400 flex items-center gap-2">
-                    <Eye size={14} /> Nur-Lesen-Ansicht — Aktionen sind dem Admin vorbehalten.
-                  </p>
                 </div>
               )}
             </div>
@@ -1028,6 +1082,64 @@ const AdminCRM: React.FC = () => {
               >
                 <Check size={18} />
                 {assigning ? 'Wird zugewiesen...' : 'Zuweisen'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === PRODUCT APPROVAL MODAL (Freischalten) === */}
+      {showApprovalModal && approvalUser && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-[#1C1C1E] border border-zinc-800 w-full max-w-md rounded-2xl shadow-2xl">
+            <div className="flex justify-between items-center p-6 border-b border-zinc-800">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Unlock size={18} className="text-amber-400" /> Produkt freischalten</h3>
+                <p className="text-sm text-zinc-500 mt-0.5">für {getUserName(approvalUser)}</p>
+              </div>
+              <button onClick={() => setShowApprovalModal(false)} className="text-zinc-500 hover:text-white"><X size={24} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-zinc-400 mb-2">Produkt auswählen</label>
+                <select
+                  value={approvalProductId}
+                  onChange={e => setApprovalProductId(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-xl px-4 py-3 focus:border-amber-500 outline-none"
+                >
+                  <option value="">Produkt wählen...</option>
+                  {consultationProducts.map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.title} — {p.price} {p.currency?.toUpperCase() || 'EUR'}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-zinc-400 mb-2">Grund (optional)</label>
+                <input
+                  type="text"
+                  value={approvalReason}
+                  onChange={e => setApprovalReason(e.target.value)}
+                  placeholder="z.B. Vorabgespräch abgeschlossen"
+                  className="w-full bg-zinc-900 border border-zinc-700 text-white rounded-xl px-4 py-3 focus:border-amber-500 outline-none placeholder-zinc-600"
+                />
+              </div>
+              <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+                <p className="text-xs text-amber-400">
+                  Nach der Freischaltung kann {getUserName(approvalUser)} das Produkt im Shop kaufen. Die Kaufsperre wird aufgehoben.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 p-6 border-t border-zinc-800">
+              <button onClick={() => setShowApprovalModal(false)} className="flex-1 px-4 py-3 bg-zinc-800 text-white font-bold rounded-xl hover:bg-zinc-700 transition-colors">
+                Abbrechen
+              </button>
+              <button
+                onClick={handleApproveProduct}
+                disabled={!approvalProductId || approving}
+                className="flex-1 px-4 py-3 bg-amber-500 text-black font-bold rounded-xl hover:bg-amber-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <Unlock size={18} />
+                {approving ? 'Wird freigeschaltet...' : 'Freischalten'}
               </button>
             </div>
           </div>
