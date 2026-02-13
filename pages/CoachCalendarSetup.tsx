@@ -111,6 +111,8 @@ const CoachCalendarSetup: React.FC = () => {
   const [bookings, setBookings] = useState<any[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [wizardStep, setWizardStep] = useState<1 | 2>(1);
+  const [wizardAvail, setWizardAvail] = useState<AvailSlot[]>([1,2,3,4,5].map(d => ({ day_of_week: d, start_time: '09:00', end_time: '17:00' })));
   const [newCalName, setNewCalName] = useState('');
   const [newCalDesc, setNewCalDesc] = useState('');
   const [newCalDuration, setNewCalDuration] = useState(30);
@@ -217,7 +219,29 @@ const CoachCalendarSetup: React.FC = () => {
     try {
       const cal = await createCoachCalendar({ coach_id: user.id, name: newCalName.trim(), description: newCalDesc.trim() || undefined, slot_duration_minutes: newCalDuration, buffer_minutes: newCalBuffer, max_advance_days: newCalAdvance, min_notice_hours: newCalNotice });
       setSuccess('Kalender erstellt!'); setShowCreateForm(false);
-      setNewCalName(''); setNewCalDesc(''); setNewCalDuration(30); setNewCalBuffer(0); setNewCalAdvance(60); setNewCalNotice(24);
+      resetWizard();
+      await fetchCalendars();
+      if (cal) { setSelectedCalendar(cal); setEnabledCalendarIds(prev => new Set([...prev, cal.id])); }
+    } catch (e: any) { setError(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const resetWizard = () => {
+    setNewCalName(''); setNewCalDesc(''); setNewCalDuration(30); setNewCalBuffer(0); setNewCalAdvance(60); setNewCalNotice(24);
+    setWizardStep(1); setWizardAvail([1,2,3,4,5].map(d => ({ day_of_week: d, start_time: '09:00', end_time: '17:00' })));
+  };
+
+  const handleCreateCalendarWizard = async () => {
+    if (!user || !newCalName.trim()) return;
+    setSaving(true);
+    try {
+      const cal = await createCoachCalendar({ coach_id: user.id, name: newCalName.trim(), description: newCalDesc.trim() || undefined, slot_duration_minutes: newCalDuration, buffer_minutes: newCalBuffer, max_advance_days: newCalAdvance, min_notice_hours: newCalNotice });
+      // Save availability right away if any slots defined
+      if (cal && wizardAvail.length > 0) {
+        await setCalendarAvailability(cal.id, wizardAvail);
+      }
+      setSuccess('Kalender erstellt mit Verfügbarkeit!'); setShowCreateForm(false);
+      resetWizard();
       await fetchCalendars();
       if (cal) { setSelectedCalendar(cal); setEnabledCalendarIds(prev => new Set([...prev, cal.id])); }
     } catch (e: any) { setError(e.message); }
@@ -398,7 +422,7 @@ const CoachCalendarSetup: React.FC = () => {
             ))}
           </div>
 
-          <button onClick={() => setShowCreateForm(true)} className="p-1.5 sm:p-2 bg-[#4285f4] text-white rounded-full hover:bg-[#4285f4]/80 transition-colors shadow-lg shadow-blue-500/20">
+          <button onClick={() => { resetWizard(); setShowCreateForm(true); }} className="p-1.5 sm:p-2 bg-[#4285f4] text-white rounded-full hover:bg-[#4285f4]/80 transition-colors shadow-lg shadow-blue-500/20">
             <Plus size={16} />
           </button>
         </div>
@@ -439,7 +463,7 @@ const CoachCalendarSetup: React.FC = () => {
             <div>
               <p className="text-xs font-medium text-zinc-500 mb-2 flex items-center justify-between">
                 Meine Kalender
-                <button onClick={() => setShowCreateForm(true)} className="hover:bg-white/5 rounded-full p-0.5"><Plus size={14} className="text-zinc-500" /></button>
+                <button onClick={() => { resetWizard(); setShowCreateForm(true); }} className="hover:bg-white/5 rounded-full p-0.5"><Plus size={14} className="text-zinc-500" /></button>
               </p>
               <div className="space-y-0.5">
                 {calendars.map((cal, ci) => {
@@ -734,25 +758,181 @@ const CoachCalendarSetup: React.FC = () => {
         </div>
       )}
 
-      {/* ═══ CREATE CALENDAR MODAL ═══ */}
+      {/* ═══ CREATE / EDIT CALENDAR WIZARD ═══ */}
       {showCreateForm && (
-        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-end sm:items-start justify-center sm:pt-[10vh]">
-          <div className="bg-[#2a2a2a] border border-zinc-700 rounded-t-2xl sm:rounded-xl p-5 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="w-10 h-1 bg-zinc-600 rounded-full mx-auto mb-3 sm:hidden" />
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-medium text-white">Neuer Kalender</h2>
-              <button onClick={() => setShowCreateForm(false)} className="text-zinc-500 hover:text-white"><X size={18} /></button>
-            </div>
-            <div className="space-y-3">
-              <div><label className="text-xs font-medium text-zinc-500 mb-1 block">Name *</label><Input value={newCalName} onChange={e => setNewCalName(e.target.value)} placeholder="z.B. Erstgespräch" /></div>
-              <div><label className="text-xs font-medium text-zinc-500 mb-1 block">Beschreibung</label><Input value={newCalDesc} onChange={e => setNewCalDesc(e.target.value)} placeholder="Optional" /></div>
-              <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-xs font-medium text-zinc-500 mb-1 block">Slot-Dauer</label><select value={newCalDuration} onChange={e => setNewCalDuration(Number(e.target.value))} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-white text-sm">{[15,30,45,60,90].map(v => <option key={v} value={v}>{v} Min</option>)}</select></div>
-                <div><label className="text-xs font-medium text-zinc-500 mb-1 block">Puffer</label><select value={newCalBuffer} onChange={e => setNewCalBuffer(Number(e.target.value))} className="w-full bg-zinc-900 border border-zinc-700 rounded-lg p-3 text-white text-sm">{[0,5,10,15,30].map(v => <option key={v} value={v}>{v} Min</option>)}</select></div>
-                <div><label className="text-xs font-medium text-zinc-500 mb-1 block">Max. Vorlauf (Tage)</label><Input type="number" value={newCalAdvance} onChange={e => setNewCalAdvance(Number(e.target.value))} /></div>
-                <div><label className="text-xs font-medium text-zinc-500 mb-1 block">Min. Vorlauf (Std)</label><Input type="number" value={newCalNotice} onChange={e => setNewCalNotice(Number(e.target.value))} /></div>
+        <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center" onClick={() => setShowCreateForm(false)}>
+          <div className="bg-[#1C1C1E] border border-zinc-800 rounded-t-2xl sm:rounded-2xl w-full max-w-lg shadow-2xl max-h-[92vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-zinc-700 rounded-full mx-auto mt-2 sm:hidden" />
+
+            {/* Header with step indicator */}
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-zinc-800">
+              <div>
+                <h2 className="text-lg font-bold text-white">{wizardStep === 1 ? 'Neuer Kalender' : 'Verfügbarkeit festlegen'}</h2>
+                <p className="text-xs text-zinc-500 mt-0.5">{wizardStep === 1 ? 'Name, Dauer & Einstellungen' : 'An welchen Tagen & Zeiten bist du erreichbar?'}</p>
               </div>
-              <Button onClick={handleCreateCalendar} disabled={!newCalName.trim() || saving} fullWidth>{saving ? 'Erstelle...' : 'Kalender erstellen'}</Button>
+              <button onClick={() => setShowCreateForm(false)} className="text-zinc-500 hover:text-white p-1"><X size={20} /></button>
+            </div>
+
+            {/* Step dots */}
+            <div className="flex items-center justify-center gap-2 py-3 border-b border-zinc-800/50">
+              <div className={`w-2 h-2 rounded-full transition-colors ${wizardStep === 1 ? 'bg-[#4285f4]' : 'bg-[#4285f4]/30'}`} />
+              <div className="w-6 h-px bg-zinc-700" />
+              <div className={`w-2 h-2 rounded-full transition-colors ${wizardStep === 2 ? 'bg-[#4285f4]' : 'bg-zinc-700'}`} />
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              {wizardStep === 1 ? (
+                <div className="space-y-5">
+                  {/* Name */}
+                  <div>
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Kalender-Name *</label>
+                    <Input value={newCalName} onChange={e => setNewCalName(e.target.value)} placeholder="z.B. Erstgespräch, Check-In, Follow-Up" />
+                  </div>
+
+                  {/* Description */}
+                  <div>
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Beschreibung</label>
+                    <Input value={newCalDesc} onChange={e => setNewCalDesc(e.target.value)} placeholder="Worum geht es? (Optional)" />
+                  </div>
+
+                  {/* Duration — visual picker */}
+                  <div>
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Termin-Dauer</label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[15, 30, 45, 60, 90].map(v => (
+                        <button key={v} onClick={() => setNewCalDuration(v)}
+                          className={`py-3 rounded-xl text-sm font-bold transition-all ${
+                            newCalDuration === v ? 'bg-[#4285f4] text-white shadow-lg shadow-blue-500/20' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                          }`}>
+                          {v}<span className="text-[10px] font-normal ml-0.5">min</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Buffer — visual picker */}
+                  <div>
+                    <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Puffer zwischen Terminen</label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[0, 5, 10, 15, 30].map(v => (
+                        <button key={v} onClick={() => setNewCalBuffer(v)}
+                          className={`py-3 rounded-xl text-sm font-bold transition-all ${
+                            newCalBuffer === v ? 'bg-[#4285f4] text-white shadow-lg shadow-blue-500/20' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white'
+                          }`}>
+                          {v === 0 ? 'Kein' : <>{v}<span className="text-[10px] font-normal ml-0.5">min</span></>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Advance + Notice — compact */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Buchbar bis</label>
+                      <div className="relative">
+                        <Input type="number" value={newCalAdvance} onChange={e => setNewCalAdvance(Number(e.target.value))} />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">Tage</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-2 block">Mindestvorlauf</label>
+                      <div className="relative">
+                        <Input type="number" value={newCalNotice} onChange={e => setNewCalNotice(Number(e.target.value))} />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">Std</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Step 2: Availability */
+                <div className="space-y-4">
+                  {/* Quick presets */}
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => setWizardAvail([1,2,3,4,5].map(d => ({ day_of_week: d, start_time: '09:00', end_time: '17:00' })))} className="text-xs bg-[#4285f4]/10 text-[#4285f4] px-3 py-1.5 rounded-lg hover:bg-[#4285f4]/20 transition-colors font-medium flex items-center gap-1"><Zap size={10} /> Mo–Fr 9–17</button>
+                    <button onClick={() => setWizardAvail([1,2,3,4,5].flatMap(d => [{ day_of_week: d, start_time: '09:00', end_time: '12:00' }, { day_of_week: d, start_time: '14:00', end_time: '18:00' }]))} className="text-xs bg-zinc-800 text-zinc-400 px-3 py-1.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors font-medium flex items-center gap-1"><Zap size={10} /> Split (mit Pause)</button>
+                    <button onClick={() => setWizardAvail([])} className="text-xs bg-zinc-800 text-zinc-400 px-3 py-1.5 rounded-lg hover:bg-zinc-700 hover:text-white transition-colors font-medium">Reset</button>
+                  </div>
+
+                  {/* Day rows */}
+                  <div className="space-y-1">
+                    {[1,2,3,4,5,6,0].map(day => {
+                      const daySlots = wizardAvail.filter(s => s.day_of_week === day);
+                      const has = daySlots.length > 0;
+                      return (
+                        <div key={day} className={`rounded-xl p-3 transition-colors ${has ? 'bg-zinc-800/50' : 'bg-transparent'}`}>
+                          <div className="flex items-center gap-3">
+                            {/* Toggle */}
+                            <button onClick={() => {
+                              if (has) setWizardAvail(prev => prev.filter(s => s.day_of_week !== day));
+                              else setWizardAvail(prev => [...prev, { day_of_week: day, start_time: '09:00', end_time: '17:00' }]);
+                            }} className="shrink-0">
+                              {has ? <ToggleRight size={24} className="text-[#4285f4]" /> : <ToggleLeft size={24} className="text-zinc-600" />}
+                            </button>
+
+                            {/* Day name */}
+                            <span className={`text-sm font-medium w-12 shrink-0 ${has ? 'text-white' : 'text-zinc-500'}`}>{DAY_LABELS_FULL[day].slice(0,2)}</span>
+
+                            {has ? (
+                              <div className="flex-1 space-y-2">
+                                {daySlots.map((slot, si) => {
+                                  const slotIdx = wizardAvail.findIndex(s => s === slot);
+                                  return (
+                                    <div key={si} className="flex items-center gap-2">
+                                      <select value={slot.start_time} onChange={e => { const n = [...wizardAvail]; n[slotIdx] = { ...slot, start_time: e.target.value }; setWizardAvail(n); }}
+                                        className="bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-[#4285f4] min-w-[80px]">
+                                        {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                      </select>
+                                      <span className="text-zinc-500 text-xs">bis</span>
+                                      <select value={slot.end_time} onChange={e => { const n = [...wizardAvail]; n[slotIdx] = { ...slot, end_time: e.target.value }; setWizardAvail(n); }}
+                                        className="bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-2 text-white text-xs outline-none focus:border-[#4285f4] min-w-[80px]">
+                                        {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+                                      </select>
+                                      {daySlots.length > 1 && (
+                                        <button onClick={() => setWizardAvail(prev => prev.filter((_, i) => i !== slotIdx))} className="p-1 text-zinc-600 hover:text-red-400 transition-colors"><Trash2 size={12} /></button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                                <button onClick={() => setWizardAvail(prev => [...prev, { day_of_week: day, start_time: '09:00', end_time: '17:00' }])}
+                                  className="text-[10px] text-[#4285f4] hover:text-[#4285f4]/80 flex items-center gap-0.5 font-medium"><Plus size={10} /> Zeitfenster</button>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-zinc-600">Nicht verfügbar</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer with navigation */}
+            <div className="px-6 py-4 border-t border-zinc-800 flex gap-3">
+              {wizardStep === 1 ? (
+                <>
+                  <button onClick={() => setShowCreateForm(false)} className="flex-1 py-3 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-colors text-sm">
+                    Abbrechen
+                  </button>
+                  <button onClick={() => { if (newCalName.trim()) setWizardStep(2); }}
+                    disabled={!newCalName.trim()}
+                    className="flex-1 py-3 bg-[#4285f4] text-white rounded-xl font-bold hover:bg-[#4285f4]/80 transition-colors text-sm disabled:opacity-40 flex items-center justify-center gap-2">
+                    Weiter <ChevronRight size={16} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => setWizardStep(1)} className="flex-1 py-3 bg-zinc-800 text-white rounded-xl font-bold hover:bg-zinc-700 transition-colors text-sm flex items-center justify-center gap-2">
+                    <ChevronLeft size={16} /> Zurück
+                  </button>
+                  <button onClick={handleCreateCalendarWizard} disabled={saving}
+                    className="flex-1 py-3 bg-[#4285f4] text-white rounded-xl font-bold hover:bg-[#4285f4]/80 transition-colors text-sm disabled:opacity-50 flex items-center justify-center gap-2">
+                    {saving ? <><Loader2 size={14} className="animate-spin" /> Erstelle...</> : <><Check size={16} /> Erstellen</>}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
