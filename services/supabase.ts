@@ -1112,6 +1112,23 @@ export const getPendingCoachingApprovals = async (coachId: string) => {
   return (data || []).filter(a => a.product?.coach_id === coachId);
 };
 
+export const getAllPendingCoachingApprovals = async () => {
+  const { data, error } = await supabase
+    .from('coaching_approvals')
+    .select(`
+      *,
+      athlete:profiles!coaching_approvals_athlete_id_fkey(id, email, first_name, last_name, display_name),
+      product:products!coaching_approvals_product_id_fkey(id, title, coach_id),
+      appointment:appointments(id, date, time, status)
+    `)
+    .eq('approved', false)
+    .is('rejected_at', null)
+    .order('created_at', { ascending: false });
+  
+  if (error) throw error;
+  return data || [];
+};
+
 export const createCoachingApproval = async (approval: {
   athlete_id: string;
   product_id: string;

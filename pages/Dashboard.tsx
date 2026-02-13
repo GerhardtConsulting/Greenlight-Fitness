@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { supabase, getAssignedPlans, updateAssignedPlan, getAttentions, getActivities, getAppointments, createAttention, createActivity, getPlans, getWeeksByPlan, getSessionsByWeek, getPendingCoachingApprovals, approveCoaching, rejectCoaching, updateAppointment, getActiveCoachingRelationships, getAllAthletes, sendAttentionChatNotification } from '../services/supabase';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { supabase, getAssignedPlans, updateAssignedPlan, getAttentions, getActivities, getAppointments, createAttention, createActivity, getPlans, getWeeksByPlan, getSessionsByWeek, getPendingCoachingApprovals, getAllPendingCoachingApprovals, approveCoaching, rejectCoaching, updateAppointment, updateAttention, getActiveCoachingRelationships, getAllAthletes, sendAttentionChatNotification } from '../services/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { UserRole, AssignedPlan, AssignedSession, WorkoutSet, Attention, ActivityFeedItem, AttentionType, AttentionSeverity, Appointment, TrainingPlan, TrainingWeek, TrainingSession, CoachingApproval } from '../types';
-import { Clock, CheckCircle2, Circle, ChevronLeft, ChevronRight, Calendar as CalendarDays, Flame, Bell, Activity, ChevronDown, ChevronUp, ExternalLink, Zap, Layers, Repeat, Play, Square, Timer, Calculator, Dumbbell, AlertCircle, TrendingUp, User, Moon, Smile, X, MessageSquare, AlertTriangle, Phone, Plus, List, UserCheck, UserX } from 'lucide-react';
+import { Clock, CheckCircle2, Circle, ChevronLeft, ChevronRight, Calendar as CalendarDays, Flame, Bell, Activity, ChevronDown, ChevronUp, ExternalLink, Zap, Layers, Repeat, Play, Square, Timer, Calculator, Dumbbell, AlertCircle, TrendingUp, User, Moon, Smile, X, MessageSquare, AlertTriangle, Phone, Plus, List, UserCheck, UserX, CheckSquare } from 'lucide-react';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import ProfileSetupWizard from '../components/ProfileSetupWizard';
@@ -269,6 +269,10 @@ const Dashboard: React.FC = () => {
   const [chatTarget, setChatTarget] = useState<{ relationshipId: string; athleteId: string; athleteName: string } | null>(null);
   const [allAthletes, setAllAthletes] = useState<any[]>([]);
   
+  // Scroll refs for KPI → section navigation
+  const attentionSectionRef = useRef<HTMLDivElement>(null);
+  const requestsSectionRef = useRef<HTMLDivElement>(null);
+  
   // UI State
   const [expandedBlockIds, setExpandedBlockIds] = useState<Set<string>>(new Set());
   const [sessionActive, setSessionActive] = useState(false);
@@ -369,9 +373,11 @@ const Dashboard: React.FC = () => {
               createdAt: d.created_at,
             } as Appointment)));
 
-          // Fetch Pending Coaching Approvals
+          // Fetch Pending Coaching Approvals (Admin sees ALL, Coach sees own)
           if (user) {
-              const approvals = await getPendingCoachingApprovals(user.id);
+              const approvals = userProfile?.role === UserRole.ADMIN
+                ? await getAllPendingCoachingApprovals()
+                : await getPendingCoachingApprovals(user.id);
               setCoachingApprovals(approvals);
           }
 
@@ -480,6 +486,16 @@ const Dashboard: React.FC = () => {
           await fetchCoachDashboardData();
       } catch (error) {
           console.error("Error completing appointment:", error);
+      }
+  };
+
+  // Mark attention/issue as resolved
+  const handleResolveAttention = async (attentionId: string) => {
+      try {
+          await updateAttention(attentionId, { status: 'RESOLVED' });
+          await fetchCoachDashboardData();
+      } catch (error) {
+          console.error("Error resolving attention:", error);
       }
   };
 
@@ -833,33 +849,39 @@ const Dashboard: React.FC = () => {
 
             {/* Coach KPIs & Feeds */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-[#1C1C1E] p-5 rounded-[1.5rem] border border-zinc-800 relative overflow-hidden group">
+                <button 
+                    onClick={() => attentionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="bg-[#1C1C1E] p-5 rounded-[1.5rem] border border-zinc-800 relative overflow-hidden group text-left hover:border-red-500/30 transition-colors cursor-pointer"
+                >
                     <div className="relative z-10">
                         <div className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">{t('dashboard.openIssues')}</div>
-                        <div className="text-3xl font-bold text-white">{attentions.length}</div>
+                        <div className={`text-3xl font-bold ${attentions.length > 0 ? 'text-red-400' : 'text-white'}`}>{attentions.length}</div>
                         <div className="text-xs text-red-500 mt-1 font-medium">{t('dashboard.highPriority', { count: String(attentions.filter(a => a.severity === 'HIGH').length) })}</div>
                     </div>
-                    <div className="absolute right-0 bottom-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                    <div className="absolute right-0 bottom-0 p-4 opacity-10 group-hover:opacity-30 group-hover:scale-110 transition-all">
                         <AlertCircle size={40} />
                     </div>
-                </div>
-                {/* Appointment KPI */}
-                <div className="bg-[#1C1C1E] p-5 rounded-[1.5rem] border border-zinc-800 relative overflow-hidden group">
+                </button>
+                {/* Requests KPI (Appointments + Coaching Approvals) */}
+                <button 
+                    onClick={() => requestsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                    className="bg-[#1C1C1E] p-5 rounded-[1.5rem] border border-zinc-800 relative overflow-hidden group text-left hover:border-blue-500/30 transition-colors cursor-pointer"
+                >
                     <div className="relative z-10">
                         <div className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest mb-1">{t('dashboard.requests')}</div>
-                        <div className="text-3xl font-bold text-white">{appointments.length}</div>
-                        <div className="text-xs text-blue-400 mt-1 font-medium">{t('dashboard.pendingApprovals')}</div>
+                        <div className={`text-3xl font-bold ${(appointments.length + coachingApprovals.length) > 0 ? 'text-blue-400' : 'text-white'}`}>{appointments.length + coachingApprovals.length}</div>
+                        <div className="text-xs text-blue-400 mt-1 font-medium">{appointments.length} Termine · {coachingApprovals.length} Coaching</div>
                     </div>
-                    <div className="absolute right-0 bottom-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                    <div className="absolute right-0 bottom-0 p-4 opacity-10 group-hover:opacity-30 group-hover:scale-110 transition-all">
                         <Phone size={40} />
                     </div>
-                </div>
+                </button>
             </div>
 
             {/* Quick Actions & Feed */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Needs Attention / Alerts */}
-                <div className="col-span-1 bg-[#1C1C1E] border border-zinc-800 rounded-[2rem] p-6">
+                <div ref={attentionSectionRef} className="col-span-1 bg-[#1C1C1E] border border-zinc-800 rounded-[2rem] p-6">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <Bell size={18} className="text-red-500" /> {t('dashboard.needsAttention')}
                     </h3>
@@ -868,17 +890,24 @@ const Dashboard: React.FC = () => {
                             <p className="text-zinc-500 text-sm italic">{t('dashboard.noOpenIssues')}</p>
                         ) : (
                             attentions.map(att => (
-                                <div key={att.id} onClick={() => setSelectedAthleteId(att.athleteId)} className="flex items-center gap-3 p-3 bg-zinc-900/50 rounded-xl border border-zinc-800 hover:bg-zinc-900 hover:border-zinc-700 transition-all cursor-pointer group">
-                                    <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center font-bold text-zinc-500 group-hover:text-white transition-colors">
+                                <div key={att.id} className="flex items-center gap-3 p-3 bg-zinc-900/50 rounded-xl border border-zinc-800 hover:bg-zinc-900 hover:border-zinc-700 transition-all group">
+                                    <div onClick={() => setSelectedAthleteId(att.athleteId)} className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center font-bold text-zinc-500 group-hover:text-white transition-colors cursor-pointer shrink-0">
                                         {att.athleteName.charAt(0).toUpperCase()}
                                     </div>
-                                    <div className="flex-1 min-w-0">
+                                    <div onClick={() => setSelectedAthleteId(att.athleteId)} className="flex-1 min-w-0 cursor-pointer">
                                         <div className="flex justify-between">
                                             <div className="text-sm font-bold text-white truncate group-hover:text-[#00FF00] transition-colors">{att.athleteName}</div>
                                             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase ${att.severity === 'HIGH' ? 'bg-red-500 text-white' : 'bg-zinc-700 text-zinc-300'}`}>{att.type}</span>
                                         </div>
                                         <div className="text-xs text-zinc-400 truncate">{att.message}</div>
                                     </div>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); handleResolveAttention(att.id); }}
+                                        className="p-1.5 rounded-lg text-zinc-600 hover:text-[#00FF00] hover:bg-[#00FF00]/10 transition-colors shrink-0"
+                                        title="Erledigt"
+                                    >
+                                        <CheckSquare size={16} />
+                                    </button>
                                 </div>
                             ))
                         )}
@@ -886,7 +915,7 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 {/* Team Activity Feed */}
-                <div className="col-span-1 md:col-span-2 bg-[#1C1C1E] border border-zinc-800 rounded-[2rem] p-6">
+                <div ref={requestsSectionRef} className="col-span-1 md:col-span-2 bg-[#1C1C1E] border border-zinc-800 rounded-[2rem] p-6">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                         <Activity size={18} className="text-[#00FF00]" /> {t('dashboard.recentActivity')}
                     </h3>
