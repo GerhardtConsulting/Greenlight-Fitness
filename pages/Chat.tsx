@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getAthleteActiveCoaching } from '../services/supabase';
+import { getAthleteActiveCoaching, supabase } from '../services/supabase';
 import CoachChat from '../components/CoachChat';
 import { MessageCircle, Lock, CheckCircle2, Loader2, ChevronLeft } from 'lucide-react';
 import Button from '../components/Button';
@@ -20,7 +20,22 @@ const Chat: React.FC = () => {
     if (!user) return;
     try {
       const data = await getAthleteActiveCoaching(user.id);
-      setCoaching(data);
+      if (data && data.product_id) {
+        // Check if the product grants chat access
+        const { data: product } = await supabase
+          .from('products')
+          .select('has_chat_access')
+          .eq('id', data.product_id)
+          .single();
+        if (product?.has_chat_access) {
+          setCoaching(data);
+        } else {
+          setCoaching(null);
+        }
+      } else {
+        // No product attached = admin-assigned without purchase → no chat
+        setCoaching(null);
+      }
     } catch (error) {
       console.error('Error fetching coaching:', error);
     } finally {

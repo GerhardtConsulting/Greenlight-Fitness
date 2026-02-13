@@ -140,14 +140,32 @@ const CoachChat: React.FC<CoachChatProps> = ({
     setNewMessage('');
     setSending(true);
 
+    // Optimistic update: show message immediately
+    const optimisticMsg: ChatMessage = {
+      id: `optimistic-${Date.now()}`,
+      coaching_relationship_id: relationshipId,
+      sender_id: currentUserId,
+      receiver_id: partnerId,
+      message_type: 'text',
+      content: text,
+      is_read: false,
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
+    scrollToBottom();
+
     try {
-      await sendChatMessage({
+      const saved = await sendChatMessage({
         coaching_relationship_id: relationshipId,
         sender_id: currentUserId,
         receiver_id: partnerId,
         message_type: 'text',
         content: text,
       });
+      // Replace optimistic message with real one
+      if (saved?.id) {
+        setMessages(prev => prev.map(m => m.id === optimisticMsg.id ? { ...saved } : m));
+      }
       // Create in-app notification for receiver
       createNotification({
         user_id: partnerId,

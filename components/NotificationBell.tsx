@@ -95,7 +95,7 @@ const NotificationBell: React.FC = () => {
   };
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative z-[100]">
       <button onClick={handleOpen} className="relative p-2 rounded-xl hover:bg-zinc-800 transition-colors text-zinc-400 hover:text-white">
         <Bell size={20} />
         {unreadCount > 0 && (
@@ -106,7 +106,7 @@ const NotificationBell: React.FC = () => {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 w-80 bg-[#1C1C1E] border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in slide-in-from-top-2 fade-in duration-200">
+        <div className="absolute right-0 top-12 w-80 bg-[#1C1C1E] border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden z-[100] animate-in slide-in-from-top-2 fade-in duration-200">
           <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
             <h3 className="text-sm font-bold text-white">Benachrichtigungen</h3>
             <div className="flex items-center gap-1">

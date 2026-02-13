@@ -1,0 +1,6 @@
+name,description,category,difficulty,tracking_type,video_url,thumbnail_url,sequence_url,default_visible_metrics,is_public
+"Bankdrücken","Grundübung für Brust, Schultern und Trizeps. Stange kontrolliert zur Brust absenken, explosiv drücken.","Upper Body","Intermediate","WEIGHT_REPS","https://youtube.com/watch?v=example","https://drive.google.com/uc?id=BILD_ID","https://drive.google.com/uc?id=SEQUENZ_ID","reps,weight",true
+"Plank","Isometrische Core-Übung. Körper bildet eine gerade Linie. Halte die Position so lange wie möglich.","Core","Beginner","TIME","","","","time",true
+"Klimmzüge","Zugübung für den Rücken. Hände schulterbreit, Kinn über die Stange ziehen.","Back","Intermediate","BODYWEIGHT_REPS","https://youtube.com/watch?v=example","","","reps",true
+"5km Lauf","Ausdauerlauf über 5 Kilometer in moderatem Tempo.","Cardio","Intermediate","TIME_DISTANCE","","","","time,distance",true
+"Kreuzheben","Grundübung für die gesamte hintere Kette. Rücken gerade, aus den Beinen heben.","Legs","Advanced","WEIGHT_REPS","","","","reps,weight,rpe",true

@@ -35,7 +35,7 @@ const AdminProducts: React.FC = () => {
     title: '',
     description: '',
     longDescription: '',
-    price: 0,
+    price: '' as any,
     currency: 'EUR',
     interval: 'month',
     planId: '',
@@ -142,7 +142,7 @@ const AdminProducts: React.FC = () => {
       title: '',
       description: '',
       longDescription: '',
-      price: 0,
+      price: '' as any,
       currency: 'EUR',
       interval: 'month',
       planId: '',
@@ -561,10 +561,12 @@ const AdminProducts: React.FC = () => {
           <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-16 flex flex-col items-center justify-center text-zinc-500">
             <Package size={64} className="mb-6 text-zinc-700" />
             <p className="text-lg font-medium mb-2">Keine Produkte vorhanden</p>
-            <p className="text-sm text-zinc-600 mb-6">Erstelle dein erstes Produkt, um loszulegen</p>
-            <Button onClick={handleCreate} className="flex items-center gap-2">
-              <Plus size={18} /> Produkt erstellen
-            </Button>
+            <p className="text-sm text-zinc-600 mb-6">{isAdmin ? 'Erstelle dein erstes Produkt, um loszulegen' : 'Es wurden noch keine Produkte angelegt.'}</p>
+            {isAdmin && (
+              <Button onClick={handleCreate} className="flex items-center gap-2">
+                <Plus size={18} /> Produkt erstellen
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -847,8 +849,8 @@ const AdminProducts: React.FC = () => {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={formData.price}
-                  onChange={e => setFormData({...formData, price: Number(e.target.value)})}
+                  value={formData.price == null || (formData.price as any) === '' ? '' : formData.price}
+                  onChange={e => setFormData({...formData, price: e.target.value === '' ? ('' as any) : Number(e.target.value)})}
                   className="w-full bg-[#121212] border border-zinc-800 text-white rounded-xl pl-10 pr-4 py-3.5 focus:border-[#00FF00] outline-none transition-colors"
                   placeholder="0.00"
                 />
