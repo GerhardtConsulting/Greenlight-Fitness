@@ -8,6 +8,7 @@ import {
   uploadFile,
   getPublicUrl,
   supabase,
+  createNotification,
 } from '../services/supabase';
 import { showLocalNotification, NotificationTypes } from '../services/notifications';
 import { Send, Mic, MicOff, X, ArrowDown, Check, CheckCheck, Loader2, Lock } from 'lucide-react';
@@ -48,6 +49,11 @@ const CoachChat: React.FC<CoachChatProps> = ({
   isFullPage = false,
   hideHeader = false,
 }) => {
+  const { userProfile } = useAuth();
+  const senderDisplayName = userProfile?.firstName
+    ? `${userProfile.firstName} ${userProfile.lastName || ''}`.trim()
+    : userProfile?.nickname || userProfile?.email?.split('@')[0] || 'Jemand';
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -142,6 +148,13 @@ const CoachChat: React.FC<CoachChatProps> = ({
         message_type: 'text',
         content: text,
       });
+      // Create in-app notification for receiver
+      createNotification({
+        user_id: partnerId,
+        type: 'chat_message',
+        title: `Neue Nachricht von ${senderDisplayName}`,
+        message: text.length > 100 ? text.slice(0, 100) + '…' : text,
+      }).catch(err => console.error('Notification create failed:', err));
       scrollToBottom();
     } catch (err) {
       console.error('Error sending message:', err);
@@ -229,6 +242,13 @@ const CoachChat: React.FC<CoachChatProps> = ({
         voice_url: voiceUrl,
         voice_duration_seconds: recordingTime,
       });
+      // Create in-app notification for receiver
+      createNotification({
+        user_id: partnerId,
+        type: 'chat_message',
+        title: `Neue Nachricht von ${senderDisplayName}`,
+        message: `Sprachnachricht (${formatTime(recordingTime)})`,
+      }).catch(err => console.error('Notification create failed:', err));
       setRecordingTime(0);
       scrollToBottom();
     } catch (err) {

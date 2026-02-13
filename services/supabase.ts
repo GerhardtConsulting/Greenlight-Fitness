@@ -2620,6 +2620,27 @@ export const markAllNotificationsRead = async (userId: string) => {
   if (error) throw error;
 };
 
+export const createNotification = async (notification: {
+  user_id: string;
+  type: string;
+  title: string;
+  message: string;
+}) => {
+  const { data, error } = await supabase
+    .from('notifications')
+    .insert({
+      user_id: notification.user_id,
+      type: notification.type,
+      title: notification.title,
+      message: notification.message,
+      read: false,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
 // ============ NOTIFICATION PREFERENCES ============
 
 export interface NotificationPreferences {
