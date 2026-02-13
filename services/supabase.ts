@@ -1322,7 +1322,40 @@ export const revokeAssignedPlan = async (planId: string) => {
 };
 
 // Assign athlete to coach (Admin function)
+// Uses upsert to handle re-assignment: if an ENDED relationship exists for the same
+// athlete+coach pair, it reactivates it instead of failing on the unique constraint.
 export const assignAthleteToCoach = async (athleteId: string, coachId: string, reason?: string) => {
+  // First check if an ACTIVE relationship already exists
+  const { data: existing } = await supabase
+    .from('coaching_relationships')
+    .select('id, status')
+    .eq('athlete_id', athleteId)
+    .eq('coach_id', coachId)
+    .maybeSingle();
+
+  if (existing?.status === 'ACTIVE') {
+    throw { message: 'duplicate', code: '23505' };
+  }
+
+  if (existing) {
+    // Reactivate the ended/paused relationship
+    const { data, error } = await supabase
+      .from('coaching_relationships')
+      .update({
+        status: 'ACTIVE',
+        is_manual_grant: true,
+        grant_reason: reason || 'Admin-Zuweisung (reaktiviert)',
+        started_at: new Date().toISOString(),
+        ended_at: null,
+      })
+      .eq('id', existing.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  // No existing relationship — create new
   const { data, error } = await supabase
     .from('coaching_relationships')
     .insert({
