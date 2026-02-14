@@ -166,10 +166,10 @@ const AthleteTrainingView: React.FC = () => {
                 if (session.id === sessionId) {
                   if (!workoutMap[dateKey]) workoutMap[dateKey] = [];
                   // Check completion from athlete_schedule
-                  const completionKey = `${plan.original_plan_id || plan.id}-${dateKey}`;
+                  const completionKey = `${plan.id}-${dateKey}`;
                   const completionRecord = completionLookup.get(completionKey);
                   workoutMap[dateKey].push({
-                    id: `${plan.id}-${session.id}`,
+                    id: `${plan.id}:::${session.id}`,
                     date: dateKey,
                     planName: plan.plan_name,
                     sessionTitle: session.title || 'Workout',
@@ -545,6 +545,7 @@ const AthleteTrainingView: React.FC = () => {
         athlete_id: user.id,
         exercise_id: ex.exerciseId,
         exercise_name: ex.name,
+        workout_date: selectedDateKey,
         sets: ex.sets.map(s => ({
           reps: s.completedReps || s.reps,
           weight: s.completedWeight || s.weight,
@@ -613,7 +614,7 @@ const AthleteTrainingView: React.FC = () => {
           .eq('id', workoutId);
       } else {
         // Assigned plan workout: upsert into athlete_schedule for completion tracking
-        const [planId, sessionId] = workoutId.split('-');
+        const [planId, sessionId] = workoutId.split(':::');
         await supabase
           .from('athlete_schedule')
           .upsert({
@@ -626,7 +627,7 @@ const AthleteTrainingView: React.FC = () => {
             completed: allCompleted,
             duration_seconds: allCompleted ? totalDuration : null,
             completed_at: allCompleted ? new Date().toISOString() : null,
-          }, { onConflict: 'athlete_id,date' });
+          }, { onConflict: 'athlete_id,plan_id,date' });
       }
       
       // Remove from active blocks and auto-start next block
