@@ -7,8 +7,8 @@
  * - Background Sync
  */
 
-const CACHE_NAME = 'greenlight-v2';
-const STATIC_CACHE = 'greenlight-static-v2';
+const CACHE_NAME = 'greenlight-v3';
+const STATIC_CACHE = 'greenlight-static-v3';
 const API_CACHE = 'greenlight-api-v1';
 
 const STATIC_ASSETS = [
@@ -18,8 +18,11 @@ const STATIC_ASSETS = [
   '/favicon.svg',
 ];
 
-// File extensions that should use cache-first
-const CACHE_FIRST_EXTENSIONS = /\.(js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|gif|webp|ico)$/i;
+// File extensions that should use cache-first (only truly static: images/fonts)
+const CACHE_FIRST_EXTENSIONS = /\.(woff2?|ttf|eot|png|jpg|jpeg|gif|webp|ico)$/i;
+
+// JS/CSS use network-first (so deploys take effect immediately)
+const NETWORK_FIRST_EXTENSIONS = /\.(js|css|svg)$/i;
 
 // Install: Cache static assets
 self.addEventListener('install', (event) => {
@@ -68,7 +71,25 @@ self.addEventListener('fetch', (event) => {
   // Skip Supabase auth requests (must always be fresh)
   if (url.href.includes('supabase.co/auth/')) return;
 
-  // Strategy 1: Cache-first for static assets (JS/CSS/images/fonts)
+  // Strategy 1a: Network-first for JS/CSS/SVG (new deploys must take effect immediately)
+  if (NETWORK_FIRST_EXTENSIONS.test(url.pathname) && url.origin === self.location.origin) {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => {
+        return caches.match(event.request).then((cached) => {
+          return cached || new Response('Offline', { status: 503 });
+        });
+      })
+    );
+    return;
+  }
+
+  // Strategy 1b: Cache-first for truly static assets (images/fonts)
   if (CACHE_FIRST_EXTENSIONS.test(url.pathname) && url.origin === self.location.origin) {
     event.respondWith(
       caches.match(event.request).then((cached) => {
