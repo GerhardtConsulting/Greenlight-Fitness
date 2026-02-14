@@ -810,7 +810,50 @@ const AthleteTrainingView: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Update set value (works directly on workouts state)
+  // Auto-save workout data to DB (debounced)
+  const saveTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+  
+  const persistWorkoutData = (workoutId: string, updatedWorkouts: Record<string, DayWorkout[]>) => {
+    if (!user) return;
+    
+    // Debounce: wait 500ms after last change before saving
+    if (saveTimeoutRef.current[workoutId]) {
+      clearTimeout(saveTimeoutRef.current[workoutId]);
+    }
+    
+    saveTimeoutRef.current[workoutId] = setTimeout(async () => {
+      const workout = updatedWorkouts[selectedDateKey]?.find(w => w.id === workoutId);
+      if (!workout) return;
+      
+      try {
+        if (workout.isCustom) {
+          await supabase
+            .from('athlete_schedule')
+            .update({ workout_data: workout.workoutData })
+            .eq('id', workoutId);
+        } else {
+          const [planId] = workoutId.split(':::');
+          if (planId) {
+            await supabase
+              .from('athlete_schedule')
+              .upsert({
+                athlete_id: user.id,
+                date: selectedDateKey,
+                plan_id: planId,
+                plan_name: workout.planName,
+                session_title: workout.sessionTitle,
+                workout_data: workout.workoutData,
+                completed: false,
+              }, { onConflict: 'athlete_id,plan_id,date' });
+          }
+        }
+      } catch (err) {
+        console.error('Auto-save workout data failed:', err);
+      }
+    }, 500);
+  };
+
+  // Update set value (works directly on workouts state + auto-save)
   const updateSetValue = (workoutId: string, blockId: string, exerciseId: string, setId: string, field: keyof WorkoutSet, value: string) => {
     setWorkouts(prev => {
       const updated = { ...prev };
@@ -838,11 +881,13 @@ const AthleteTrainingView: React.FC = () => {
           };
         });
       }
+      // Auto-save to DB (debounced)
+      persistWorkoutData(workoutId, updated);
       return updated;
     });
   };
 
-  // Toggle set completion (works directly on workouts state)
+  // Toggle set completion (works directly on workouts state + auto-save)
   const toggleSetComplete = (workoutId: string, blockId: string, exerciseId: string, setId: string) => {
     setWorkouts(prev => {
       const updated = { ...prev };
@@ -870,6 +915,8 @@ const AthleteTrainingView: React.FC = () => {
           };
         });
       }
+      // Auto-save to DB (debounced)
+      persistWorkoutData(workoutId, updated);
       return updated;
     });
   };
