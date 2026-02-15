@@ -26,6 +26,7 @@ const ExerciseEditorModal: React.FC<ExerciseEditorModalProps> = ({ isOpen, onClo
     { key: 'weight', label: t('editor.metric_weight') },
     { key: 'pct_1rm', label: t('editor.metric_pct_1rm') },
     { key: 'rpe', label: t('editor.metric_rpe') },
+    { key: 'rest', label: t('editor.metric_rest') },
     { key: 'distance', label: t('editor.metric_distance') },
     { key: 'time', label: t('editor.metric_time') },
     { key: 'tempo', label: t('editor.metric_tempo') },

@@ -77,6 +77,7 @@ const DraftSessionBuilder: React.FC<DraftSessionBuilderProps> = ({ session, onCl
     { key: 'weight', label: t('editor.metric_weight') },
     { key: 'pct_1rm', label: t('editor.metric_pct_1rm') },
     { key: 'rpe', label: t('editor.metric_rpe') },
+    { key: 'rest', label: t('editor.metric_rest') },
     { key: 'distance', label: t('editor.metric_distance') },
     { key: 'time', label: t('editor.metric_time') },
     { key: 'tempo', label: t('editor.metric_tempo') },
@@ -579,7 +580,7 @@ const DraftSessionBuilder: React.FC<DraftSessionBuilderProps> = ({ session, onCl
                                                         <thead>
                                                             <tr className="text-xs text-zinc-500 border-b border-zinc-800">
                                                                 <th className="p-2 w-10 text-center">#</th>
-                                                                <th className="p-2 w-28">Type</th>
+                                                                <th className="p-2 w-28">{t('editor.set_type')}</th>
                                                                 
                                                                 {visibleMetrics.map((metricKey: any, colIndex) => {
                                                                     const metricDef = METRIC_OPTIONS.find(m => m.key === metricKey) || { label: metricKey };
@@ -612,7 +613,6 @@ const DraftSessionBuilder: React.FC<DraftSessionBuilderProps> = ({ session, onCl
                                                                     );
                                                                 })}
 
-                                                                <th className="p-2">{t('planner.rest')}</th>
                                                                 <th className="p-2 w-8"></th>
                                                             </tr>
                                                         </thead>
@@ -634,19 +634,18 @@ const DraftSessionBuilder: React.FC<DraftSessionBuilderProps> = ({ session, onCl
                                                                         </select>
                                                                     </td>
                                                                     
-                                                                    {visibleMetrics.map((metricKey: any, idx) => (
+                                                                    {visibleMetrics.map((metricKey: any, idx) => {
+                                                                        const ph = metricKey === 'rest' ? 's' : metricKey === 'weight' ? 'kg' : metricKey === 'time' ? 'min' : metricKey === 'distance' ? 'm' : '-';
+                                                                        return (
                                                                         <td key={idx} className="p-2">
                                                                             <input className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 w-20 text-center text-white focus:border-[#00FF00] outline-none" 
                                                                                 value={(set as any)[metricKey] || ''} 
                                                                                 onChange={(e) => updateSet(block.id, exercise.id, set.id, metricKey, e.target.value)} 
-                                                                                placeholder="-" />
+                                                                                placeholder={ph} />
                                                                         </td>
-                                                                    ))}
+                                                                        );
+                                                                    })}
 
-                                                                    <td className="p-2">
-                                                                        <input className="bg-zinc-950 border border-zinc-800 rounded px-2 py-1 w-16 text-center text-zinc-300 focus:border-[#00FF00] outline-none" 
-                                                                            value={set.rest || ''} onChange={(e) => updateSet(block.id, exercise.id, set.id, 'rest', e.target.value)} placeholder="s" />
-                                                                    </td>
                                                                     <td className="p-2 text-right">
                                                                         <button onClick={() => removeSet(block.id, exercise.id, set.id)} className="text-zinc-600 hover:text-red-500 opacity-0 group-hover/row:opacity-100 transition-opacity">
                                                                             <X size={14} />
