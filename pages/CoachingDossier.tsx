@@ -53,7 +53,7 @@ const CoachingDossier: React.FC = () => {
         supabase.from('coaching_relationships').select('*, product:products(id, title, type, coaching_duration_weeks, sessions_per_week, intake_form_enabled)').eq('athlete_id', athleteId).eq('status', 'ACTIVE').order('created_at', { ascending: false }).limit(1).maybeSingle(),
         supabase.from('assigned_plans').select('*').eq('athlete_id', athleteId).eq('schedule_status', 'ACTIVE').order('created_at', { ascending: false }).limit(1),
         supabase.from('goals').select('*, exercise:exercises(id, name)').eq('athlete_id', athleteId).eq('status', 'ACTIVE').order('created_at', { ascending: false }),
-        supabase.from('daily_wellness').select('*').eq('athlete_id', athleteId).order('date', { ascending: false }).limit(14),
+        supabase.from('check_ins').select('*').eq('athlete_id', athleteId).order('date', { ascending: false }).limit(14),
         supabase.from('weekly_stats').select('*').eq('athlete_id', athleteId).order('week_start', { ascending: false }).limit(8),
         supabase.from('attentions').select('*').eq('athlete_id', athleteId).eq('status', 'OPEN').order('created_at', { ascending: false }).limit(5),
         supabase.from('body_measurements').select('*').eq('user_id', athleteId).order('date', { ascending: false }).limit(10),
@@ -429,21 +429,26 @@ const CoachingDossier: React.FC = () => {
           <div className="animate-in fade-in space-y-4">
             {/* Recent Wellness */}
             <div className="bg-[#1C1C1E] border border-zinc-800 rounded-xl p-4">
-              <h3 className="text-white font-bold text-sm mb-3 flex items-center gap-2"><Heart size={16} className="text-red-400" /> Tägliches Wohlbefinden (letzte 14 Tage)</h3>
+              <h3 className="text-white font-bold text-sm mb-3 flex items-center gap-2"><Heart size={16} className="text-red-400" /> Tägliche Check-Ins (letzte 14 Tage)</h3>
               {wellness.length === 0 ? (
-                <p className="text-zinc-500 text-xs text-center py-4">Keine Wellness-Daten vorhanden.</p>
+                <p className="text-zinc-500 text-xs text-center py-4">Keine Check-In-Daten vorhanden. Der Athlet hat noch keinen täglichen Check-In ausgefüllt.</p>
               ) : (
                 <div className="space-y-1">
                   {wellness.slice(0, 7).map(w => (
                     <div key={w.id || w.date} className="flex items-center gap-3 py-1.5 border-b border-zinc-800/50 last:border-0">
                       <span className="text-zinc-500 text-xs w-16 shrink-0">{formatDate(w.date)}</span>
-                      <div className="flex gap-2 flex-1">
-                        {w.mood && <span className="text-xs bg-zinc-900 px-2 py-0.5 rounded">😊 {w.mood}/5</span>}
-                        {w.energy && <span className="text-xs bg-zinc-900 px-2 py-0.5 rounded">⚡ {w.energy}/5</span>}
-                        {w.sleep_quality && <span className="text-xs bg-zinc-900 px-2 py-0.5 rounded">😴 {w.sleep_quality}/5</span>}
-                        {w.stress && <span className="text-xs bg-zinc-900 px-2 py-0.5 rounded">🧠 {w.stress}/5</span>}
+                      <div className="flex gap-2 flex-1 flex-wrap">
+                        {w.sleep_rating > 0 && <span className="text-xs bg-zinc-900 px-2 py-0.5 rounded">� {w.sleep_rating}/5</span>}
+                        {w.energy_rating > 0 && <span className="text-xs bg-zinc-900 px-2 py-0.5 rounded">⚡ {w.energy_rating}/5</span>}
+                        {w.mood_rating > 0 && <span className="text-xs bg-zinc-900 px-2 py-0.5 rounded">😊 {w.mood_rating}/5</span>}
+                        {w.stress_rating > 0 && <span className="text-xs bg-zinc-900 px-2 py-0.5 rounded">🧠 {w.stress_rating}/5</span>}
+                        {w.muscle_soreness > 0 && <span className="text-xs bg-zinc-900 px-2 py-0.5 rounded">💪 {w.muscle_soreness}/5</span>}
+                        {w.nutrition_rating > 0 && <span className="text-xs bg-zinc-900 px-2 py-0.5 rounded">🥗 {w.nutrition_rating}/5</span>}
                       </div>
-                      {w.weight && <span className="text-zinc-400 text-xs">{w.weight}kg</span>}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {w.weight && <span className="text-zinc-400 text-xs">{w.weight}kg</span>}
+                        {w.status === 'REVIEWED' && <span className="text-[9px] bg-[#00FF00]/10 text-[#00FF00] px-1.5 py-0.5 rounded font-bold">✓</span>}
+                      </div>
                     </div>
                   ))}
                 </div>
