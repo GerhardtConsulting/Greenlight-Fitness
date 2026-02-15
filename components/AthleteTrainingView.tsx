@@ -120,6 +120,17 @@ const AthleteTrainingView: React.FC = () => {
     }
   }, [user, currentWeekStart]);
 
+  // Reload when athlete returns to tab (near-real-time for published changes)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && user) {
+        loadWorkouts();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [user, currentWeekStart]);
+
   const loadWorkouts = async () => {
     if (!user) return;
     setLoading(true);
@@ -158,14 +169,16 @@ const AthleteTrainingView: React.FC = () => {
       // Process assigned plans (skip PAUSED plans)
       assignedPlans.forEach((plan: any) => {
         if (plan.schedule_status === 'PAUSED') return;
-        if (plan.schedule && plan.structure?.weeks) {
+        
+        const hasSchedule = plan.schedule && Object.keys(plan.schedule).length > 0;
+        
+        if (hasSchedule && plan.structure?.weeks) {
+          // Schedule-based plans (GROUP_FLEX): sessions mapped to specific dates
           Object.entries(plan.schedule).forEach(([dateKey, sessionId]) => {
-            // Find the session in the structure
             plan.structure.weeks.forEach((week: any) => {
               week.sessions?.forEach((session: any) => {
                 if (session.id === sessionId) {
                   if (!workoutMap[dateKey]) workoutMap[dateKey] = [];
-                  // Check completion from athlete_schedule
                   const completionKey = `${plan.id}-${dateKey}`;
                   const completionRecord = completionLookup.get(completionKey);
                   workoutMap[dateKey].push({
@@ -183,6 +196,44 @@ const AthleteTrainingView: React.FC = () => {
               });
             });
           });
+        } else if (plan.structure?.weeks?.length > 0) {
+          // 1:1 coaching / dayOfWeek-based plans: map sessions by dayOfWeek to calendar dates
+          const planStart = plan.start_date ? new Date(plan.start_date) : null;
+          const totalPlanWeeks = plan.structure.weeks.length;
+          
+          // Calculate which plan week the current calendar week corresponds to
+          let planWeekIndex = 0;
+          if (planStart && totalPlanWeeks > 0) {
+            const weekStartMs = weekDates[0].getTime();
+            const planStartMs = planStart.getTime();
+            const diffMs = weekStartMs - planStartMs;
+            const diffWeeks = Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000));
+            planWeekIndex = diffWeeks >= 0 ? diffWeeks % totalPlanWeeks : 0;
+          }
+          
+          const currentWeek = plan.structure.weeks[planWeekIndex];
+          if (currentWeek?.sessions) {
+            currentWeek.sessions.forEach((session: any) => {
+              const dayIdx = session.dayOfWeek ?? session.day_of_week ?? 0;
+              if (dayIdx >= 0 && dayIdx < 7) {
+                const dateKey = weekDates[dayIdx].toISOString().split('T')[0];
+                if (!workoutMap[dateKey]) workoutMap[dateKey] = [];
+                const completionKey = `${plan.id}-${dateKey}`;
+                const completionRecord = completionLookup.get(completionKey);
+                workoutMap[dateKey].push({
+                  id: `${plan.id}:::${session.id}:::w${planWeekIndex}`,
+                  date: dateKey,
+                  planName: plan.plan_name,
+                  sessionTitle: session.title || 'Workout',
+                  workoutData: completionRecord?.workoutData || session.workoutData || session.workout_data || [],
+                  isCustom: false,
+                  completed: completionRecord?.completed || false,
+                  duration: completionRecord?.duration,
+                  completedAt: completionRecord?.completedAt,
+                });
+              }
+            });
+          }
         }
       });
 
@@ -1572,7 +1623,7 @@ const AthleteTrainingView: React.FC = () => {
                                     <div className="w-6 h-6 bg-[#00FF00] rounded-full flex items-center justify-center">
                                       <Check size={14} className="text-black" />
                                     </div>
-                                    <p className="font-medium text-white">{exercise.name}</p>
+                                    <p className="font-medium text-white">{exercise.name || (exercise as any).exerciseName || 'Übung'}</p>
                                   </div>
                                   <span className="text-[#00FF00] font-mono text-sm">{getCompactSummary()}</span>
                                 </div>
@@ -1589,7 +1640,7 @@ const AthleteTrainingView: React.FC = () => {
                                         <Check size={12} className="text-black" />
                                       </div>
                                     )}
-                                    <p className={`font-medium ${exerciseComplete ? 'text-[#00FF00]' : 'text-white'}`}>{exercise.name}</p>
+                                    <p className={`font-medium ${exerciseComplete ? 'text-[#00FF00]' : 'text-white'}`}>{exercise.name || (exercise as any).exerciseName || 'Übung'}</p>
                                     {exercise.videoUrl && (
                                       <button
                                         onClick={() => setVideoPreview(exercise.videoUrl || null)}

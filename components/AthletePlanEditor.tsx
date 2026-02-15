@@ -96,6 +96,8 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
 
   // Auto-save timer
   const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
+  // Track plan ID (survives across saves for new plans)
+  const planIdRef = useRef<string | null>(existingPlan?.id || null);
 
   // ============ INIT ============
   useEffect(() => {
@@ -105,6 +107,7 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
         id: w.id || genId(),
         order: w.order || i + 1,
         focus: w.focus || `Woche ${i + 1}`,
+        restDays: w.restDays || w.rest_days || [],
         sessions: (w.sessions || []).map((s: any) => ({
           id: s.id || genId(),
           dayOfWeek: s.dayOfWeek ?? s.day_of_week ?? 0,
@@ -160,6 +163,7 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
       id: w.id,
       order: w.order,
       focus: w.focus,
+      restDays: w.restDays || [],
       sessions: w.sessions.map(s => ({
         id: s.id,
         dayOfWeek: s.dayOfWeek,
@@ -176,8 +180,8 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
     if (!user) return;
     const structure = buildStructure();
     try {
-      if (existingPlan?.id) {
-        await updateAssignedPlan(existingPlan.id, {
+      if (planIdRef.current) {
+        await updateAssignedPlan(planIdRef.current, {
           plan_name: planName,
           description: planDesc,
           start_date: startDate,
@@ -199,7 +203,7 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
           published_weeks: [],
         });
         if (result?.id) {
-          existingPlan.id = result.id;
+          planIdRef.current = result.id;
         }
       }
       setDirty(false);
@@ -218,8 +222,9 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
     const pubStructure = { weeks: allWeeks.filter((_, i) => newPublished.includes(i)) };
 
     try {
-      if (existingPlan?.id) {
-        await updateAssignedPlan(existingPlan.id, {
+      if (!planIdRef.current) await saveDraft();
+      if (planIdRef.current) {
+        await updateAssignedPlan(planIdRef.current, {
           plan_name: planName,
           description: planDesc,
           start_date: startDate,
@@ -242,8 +247,8 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
     const pubStructure = { weeks: allWeeks.filter((_, i) => newPublished.includes(i)) };
 
     try {
-      if (existingPlan?.id) {
-        await updateAssignedPlan(existingPlan.id, {
+      if (planIdRef.current) {
+        await updateAssignedPlan(planIdRef.current, {
           structure: pubStructure,
           published_weeks: newPublished,
         });
@@ -258,8 +263,9 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
     setPublishedWeeks(allIdxs);
     const structure = buildStructure();
     try {
-      if (existingPlan?.id) {
-        await updateAssignedPlan(existingPlan.id, {
+      if (!planIdRef.current) await saveDraft();
+      if (planIdRef.current) {
+        await updateAssignedPlan(planIdRef.current, {
           plan_name: planName,
           description: planDesc,
           start_date: startDate,
@@ -282,8 +288,8 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
       const structure = buildStructure();
       const pubStructure = { weeks: structure.weeks.filter((_, i) => publishedWeeks.includes(i)) };
 
-      if (existingPlan?.id) {
-        await updateAssignedPlan(existingPlan.id, {
+      if (planIdRef.current) {
+        await updateAssignedPlan(planIdRef.current, {
           plan_name: planName,
           description: planDesc,
           start_date: startDate,
@@ -292,7 +298,7 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
           published_weeks: publishedWeeks,
         });
       } else {
-        await createAssignedPlan({
+        const result = await createAssignedPlan({
           athlete_id: athleteId,
           coach_id: user.id,
           original_plan_id: null,
@@ -303,9 +309,10 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
           plan_name: planName,
           description: planDesc,
           draft_structure: structure,
-          structure: { weeks: [] },
-          published_weeks: [],
+          structure: pubStructure,
+          published_weeks: publishedWeeks,
         });
+        if (result?.id) planIdRef.current = result.id;
       }
       setDirty(false);
       onSave?.();
