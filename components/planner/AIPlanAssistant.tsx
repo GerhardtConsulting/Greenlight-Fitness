@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { generateAIPlan, createPlan, createWeek, createSession } from '../../services/supabase';
+import { generateAIPlan, createPlan, createWeek, createSession, getPlans } from '../../services/supabase';
 import { useAuth } from '../../context/AuthContext';
 import { X, Send, Mic, MicOff, Sparkles, ChevronDown, ChevronRight, Save, AlertTriangle, Key, Loader2, Dumbbell, Calendar, Layers } from 'lucide-react';
 
@@ -150,10 +150,20 @@ const AIPlanAssistant: React.FC<AIPlanAssistantProps> = ({ isOpen, onClose, onPl
 
     setIsSaving(true);
     try {
+      // Check for duplicate plan name
+      const existingPlans = await getPlans(user.id);
+      let planName = planData.planName || 'AI-generierter Plan';
+      const existingNames = new Set(existingPlans.map((p: any) => (p.name || '').toLowerCase()));
+      if (existingNames.has(planName.toLowerCase())) {
+        let suffix = 2;
+        while (existingNames.has(`${planName} (${suffix})`.toLowerCase())) suffix++;
+        planName = `${planName} (${suffix})`;
+      }
+
       // 1. Create the plan
       const plan = await createPlan({
         coach_id: user.id,
-        name: planData.planName || 'AI-generierter Plan',
+        name: planName,
         description: planData.planDescription || 'Erstellt mit AI Plan Builder',
       });
 
@@ -385,10 +395,16 @@ const AIPlanAssistant: React.FC<AIPlanAssistantProps> = ({ isOpen, onClose, onPl
                       </div>
 
                       {/* Meta */}
-                      {msg.meta && msg.meta.exercisesInvalid > 0 && (
-                        <div className="p-2 bg-amber-500/5 border-t border-amber-500/10 flex items-center gap-1.5">
-                          <AlertTriangle size={10} className="text-amber-400" />
-                          <span className="text-[10px] text-amber-400">{msg.meta.exercisesInvalid} Übung(en) nicht zugeordnet</span>
+                      {msg.meta && (msg.meta.exercisesCreated > 0 || msg.meta.exercisesFixed > 0) && (
+                        <div className="p-2 bg-zinc-900 border-t border-zinc-800 flex items-center gap-3 text-[10px] text-zinc-500">
+                          {msg.meta.exercisesFixed > 0 && (
+                            <span>{msg.meta.exercisesFixed} Übung(en) zugeordnet</span>
+                          )}
+                          {msg.meta.exercisesCreated > 0 && (
+                            <span className="text-amber-400 flex items-center gap-1">
+                              <AlertTriangle size={9} /> {msg.meta.exercisesCreated} neue Übung(en) erstellt
+                            </span>
+                          )}
                         </div>
                       )}
 

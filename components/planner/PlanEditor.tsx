@@ -19,28 +19,16 @@ const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 const PlanEditor: React.FC<PlanEditorProps> = ({ plan: initialPlan, onBack }) => {
   const { t } = useLanguage();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const [currentPlan, setCurrentPlan] = useState<TrainingPlan>(initialPlan);
-  
   // Check if this is a system plan (read-only for non-owners)
   const isSystemPlan = (currentPlan as any).is_system_plan || (currentPlan as any).isSystemPlan;
   const planCoachId = (currentPlan as any).coach_id || currentPlan.coachId;
   const isOwner = user?.id === planCoachId;
+  const isAdmin = userProfile?.role === 'ADMIN';
   
-  // Debug logging to identify permission issues
-  console.log('Plan permissions:', { 
-    planId: currentPlan.id,
-    planName: currentPlan.name,
-    isSystemPlan, 
-    planCoachId,
-    userId: user?.id, 
-    isOwner,
-    willBeReadOnly: isSystemPlan && !isOwner
-  });
-  
-  // Only system plans are read-only, and only if user is NOT the owner
-  // For now, allow editing if user is logged in (for testing)
-  const isReadOnly = isSystemPlan && !isOwner && planCoachId !== undefined;
+  // Admins can always edit. System plans are read-only only for non-admin non-owners.
+  const isReadOnly = isSystemPlan && !isOwner && !isAdmin && planCoachId !== undefined;
   const [weeks, setWeeks] = useState<TrainingWeek[]>([]);
   const [activeWeek, setActiveWeek] = useState<TrainingWeek | null>(null);
   const [sessions, setSessions] = useState<TrainingSession[]>([]);

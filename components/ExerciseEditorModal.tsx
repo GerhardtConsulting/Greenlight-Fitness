@@ -427,11 +427,10 @@ const ExerciseEditorModal: React.FC<ExerciseEditorModalProps> = ({ isOpen, onClo
                             <thead>
                                 <tr className="bg-zinc-900 text-zinc-400 border-b border-zinc-800">
                                     <th className="p-3 w-12 text-center">#</th>
-                                    <th className="p-3 w-32">Type</th>
+                                    <th className="p-3 w-32">{t('editor.set_type')}</th>
                                     {formData.defaultVisibleMetrics.map(key => (
                                         <th key={key} className="p-3">{METRIC_OPTIONS.find(m => m.key === key)?.label}</th>
                                     ))}
-                                    <th className="p-3">Rest</th>
                                     <th className="p-3 w-10"></th>
                                 </tr>
                             </thead>
@@ -450,24 +449,19 @@ const ExerciseEditorModal: React.FC<ExerciseEditorModalProps> = ({ isOpen, onClo
                                                 <option value="Dropset">{t('editor.type_dropset')}</option>
                                             </select>
                                         </td>
-                                        {formData.defaultVisibleMetrics.map(key => (
+                                        {formData.defaultVisibleMetrics.map(key => {
+                                            const ph = key === 'rest' ? 's' : key === 'weight' ? 'kg' : key === 'time' ? 'min' : key === 'distance' ? 'm' : '-';
+                                            return (
                                             <td key={key} className="p-2">
                                                 <input 
                                                     className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 w-20 text-center text-white focus:border-[#00FF00] outline-none text-xs" 
                                                     value={(set as any)[key] || ''} 
                                                     onChange={(e) => updateSet(set.id, key as any, e.target.value)} 
-                                                    placeholder="-" 
+                                                    placeholder={ph} 
                                                 />
                                             </td>
-                                        ))}
-                                        <td className="p-2">
-                                            <input 
-                                                className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 w-16 text-center text-white focus:border-[#00FF00] outline-none text-xs"
-                                                value={set.rest || ''}
-                                                onChange={(e) => updateSet(set.id, 'rest', e.target.value)}
-                                                placeholder="s"
-                                            />
-                                        </td>
+                                            );
+                                        })}
                                         <td className="p-2 text-center">
                                             <button 
                                                 type="button" 
