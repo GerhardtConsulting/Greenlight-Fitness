@@ -185,6 +185,7 @@ export interface TrainingWeek {
   planId: string;
   order: number; // 1, 2, 3...
   focus?: string; // e.g., "Hypertrophy Phase"
+  restDays?: number[]; // e.g., [5, 6] = Sat, Sun are rest days
 }
 
 // --- PRODUCT / SHOP TYPES ---

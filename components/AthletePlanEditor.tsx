@@ -13,7 +13,7 @@ import {
   Plus, Trash2, Save, Loader2, ChevronDown, ChevronUp, Dumbbell,
   Calendar, Copy, FileText, X, Check, Layers, GripVertical,
   Pencil, ChevronLeft, Download, AlertTriangle, Eye, EyeOff,
-  ClipboardList, Send, Lock, Unlock
+  ClipboardList, Send, Lock, Unlock, Moon
 } from 'lucide-react';
 
 interface AthletePlanEditorProps {
@@ -30,6 +30,7 @@ interface DraftWeek {
   order: number;
   focus: string;
   sessions: DraftSession[];
+  restDays?: number[];
 }
 
 interface DraftSession {
@@ -384,6 +385,19 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
     markDirty();
   };
 
+  // --- REST DAY TOGGLE ---
+  const handleToggleRestDay = (dayIndex: number) => {
+    if (!activeWeek) return;
+    const current = activeWeek.restDays || [];
+    const updated = current.includes(dayIndex)
+      ? current.filter(d => d !== dayIndex)
+      : [...current, dayIndex];
+    const updatedWeek = { ...activeWeek, restDays: updated };
+    setActiveWeek(updatedWeek);
+    setWeeks(weeks.map(w => w.id === activeWeek.id ? updatedWeek : w));
+    markDirty();
+  };
+
   const handleUpdateWeekFocus = (newFocus: string) => {
     if (!activeWeek) return;
     if (newFocus !== activeWeek.focus) {
@@ -716,16 +730,31 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-7 h-full overflow-y-auto md:divide-x divide-zinc-800 scrollbar-hide">
           {DAYS.map((dayName, index) => {
             const daySessions = sessions.filter(s => s.dayOfWeek === index);
+            const isRestDay = (activeWeek?.restDays || []).includes(index);
             return (
-              <div key={dayName} className="flex flex-col h-auto md:h-full bg-[#1C1C1E]/20 min-h-[150px] border-b md:border-b-0 border-zinc-800/50"
+              <div key={dayName} className={`flex flex-col h-auto md:h-full min-h-[150px] border-b md:border-b-0 border-zinc-800/50 transition-colors ${isRestDay ? 'bg-zinc-900/60' : 'bg-[#1C1C1E]/20'}`}
                 onDragOver={handleDragOver} onDrop={(e) => handleDropOnDay(e, index)}>
                 {/* Day Header */}
                 <div className="p-4 border-b border-zinc-800/50 flex justify-between items-center bg-[#1C1C1E]/80 backdrop-blur-sm sticky top-0 z-20">
-                  <span className="font-bold text-zinc-500 uppercase text-[10px] tracking-widest">{dayName}</span>
-                  <button onClick={() => handleAddSession(index)}
-                    className="w-6 h-6 rounded bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-[#00FF00] hover:bg-zinc-700 transition-colors">
-                    <Plus size={14} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className={`font-bold uppercase text-[10px] tracking-widest ${isRestDay ? 'text-blue-400' : 'text-zinc-500'}`}>{dayName}</span>
+                    {isRestDay && <span className="text-[8px] bg-blue-500/15 text-blue-400 px-1.5 py-0.5 rounded font-bold">REST</span>}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handleToggleRestDay(index)}
+                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${isRestDay ? 'bg-blue-500/20 text-blue-400 hover:bg-blue-500/30' : 'bg-zinc-800 text-zinc-600 hover:text-zinc-400 hover:bg-zinc-700'}`}
+                      title={isRestDay ? 'Ruhetag deaktivieren' : 'Als Ruhetag markieren'}
+                    >
+                      <Moon size={12} />
+                    </button>
+                    {!isRestDay && (
+                      <button onClick={() => handleAddSession(index)}
+                        className="w-6 h-6 rounded bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-[#00FF00] hover:bg-zinc-700 transition-colors">
+                        <Plus size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {/* Sessions */}
                 <div className="p-3 space-y-3 flex-1">
@@ -765,10 +794,16 @@ const AthletePlanEditor: React.FC<AthletePlanEditorProps> = ({
                       </div>
                     </div>
                   ))}
-                  {daySessions.length === 0 && (
+                  {daySessions.length === 0 && !isRestDay && (
                     <div onClick={() => handleAddSession(index)}
                       className="h-full min-h-[60px] flex items-center justify-center text-zinc-800 hover:text-zinc-600 cursor-pointer transition-colors border-2 border-dashed border-transparent hover:border-zinc-800 rounded-2xl m-1">
                       <Plus size={24} className="opacity-50" />
+                    </div>
+                  )}
+                  {isRestDay && daySessions.length === 0 && (
+                    <div className="h-full min-h-[60px] flex flex-col items-center justify-center text-blue-400/40 gap-1">
+                      <Moon size={20} />
+                      <span className="text-[10px] font-bold uppercase tracking-widest">Ruhetag</span>
                     </div>
                   )}
                 </div>
