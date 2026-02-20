@@ -12,7 +12,7 @@ interface ExerciseEditorModalProps {
   isOpen: boolean;
   onClose: () => void;
   exerciseToEdit?: Exercise | null;
-  onSave: () => void;
+  onSave: () => void | Promise<void>;
 }
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -30,6 +30,11 @@ const ExerciseEditorModal: React.FC<ExerciseEditorModalProps> = ({ isOpen, onClo
     { key: 'distance', label: t('editor.metric_distance') },
     { key: 'time', label: t('editor.metric_time') },
     { key: 'tempo', label: t('editor.metric_tempo') },
+  ];
+
+  const CATEGORY_OPTIONS = [
+    'Chest', 'Back', 'Shoulders', 'Legs', 'Arms', 'Core', 'Cardio',
+    'Olympic Lifts', 'Mobility', 'Full Body', 'Warm-up', 'Cooldown'
   ];
 
   const TRACKING_TYPE_OPTIONS: { value: ExerciseTrackingType; label: string; icon: React.ReactNode; metrics: string[] }[] = [
@@ -281,7 +286,7 @@ const ExerciseEditorModal: React.FC<ExerciseEditorModalProps> = ({ isOpen, onClo
           is_archived: false,
         });
       }
-      onSave();
+      await onSave();
       onClose();
     } catch (error: any) {
       console.error("Error saving exercise:", error);
@@ -308,7 +313,7 @@ const ExerciseEditorModal: React.FC<ExerciseEditorModalProps> = ({ isOpen, onClo
         </div>
 
         {/* Content */}
-        <div className="overflow-y-auto p-6 flex-1">
+        <div className="overflow-y-auto p-6 flex-1" style={{ overscrollBehavior: 'contain' }}>
           <form id="exercise-form" onSubmit={handleSubmit} className="space-y-8">
             
             {/* 1. Basic Info */}
@@ -322,13 +327,20 @@ const ExerciseEditorModal: React.FC<ExerciseEditorModalProps> = ({ isOpen, onClo
                         required 
                         placeholder="e.g. Barbell Squat"
                     />
-                    <Input 
-                        label={t('editor.category')} 
-                        value={formData.category}
-                        onChange={e => setFormData({...formData, category: e.target.value})} 
-                        required 
-                        placeholder="e.g. Legs"
-                    />
+                    <div className="flex flex-col gap-1">
+                        <label className="text-sm font-medium text-zinc-400">{t('editor.category')}</label>
+                        <select
+                            value={formData.category}
+                            onChange={(e) => setFormData({...formData, category: e.target.value})}
+                            required
+                            className="bg-zinc-900 border border-zinc-700 text-white rounded px-3 py-2 focus:outline-none focus:border-[#00FF00] focus:ring-1 focus:ring-[#00FF00]"
+                        >
+                            <option value="" disabled>Kategorie wählen...</option>
+                            {CATEGORY_OPTIONS.map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

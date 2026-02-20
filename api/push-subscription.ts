@@ -20,7 +20,7 @@ interface VercelResponse {
 
 const supabase = createClient(
   process.env.VITE_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_KEY || '' // Service key for server-side operations
+  process.env.SUPABASE_SERVICE_ROLE_KEY || '' // Service role key for server-side operations
 );
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

@@ -114,7 +114,7 @@ const AdminCRM: React.FC = () => {
     if (user) fetchData();
   }, [user]);
 
-  const fetchData = async () => {
+  const fetchData = async (): Promise<CRMUser[]> => {
     setLoading(true);
     try {
       const [userData, productData] = await Promise.all([
@@ -127,8 +127,10 @@ const AdminCRM: React.FC = () => {
       const coachList = (userData as CRMUser[]).filter(u => u.role === 'COACH' || u.role === 'ADMIN');
       setCoaches(coachList);
       setProducts(productData);
+      return userData as CRMUser[];
     } catch (error) {
       console.error("Error fetching CRM data:", error);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -342,9 +344,9 @@ const AdminCRM: React.FC = () => {
     setConfirmAction(() => async () => {
       try {
         await revokePurchase(purchaseId);
-        await fetchData();
+        const freshUsers = await fetchData();
         if (detailUser) {
-          const refreshed = allUsers.find(u => u.id === detailUser.id);
+          const refreshed = freshUsers.find(u => u.id === detailUser.id);
           if (refreshed) setDetailUser(refreshed);
         }
       } catch (error) {
@@ -359,9 +361,9 @@ const AdminCRM: React.FC = () => {
     setConfirmAction(() => async () => {
       try {
         await revokeAssignedPlan(planId);
-        await fetchData();
+        const freshUsers = await fetchData();
         if (detailUser) {
-          const refreshed = allUsers.find(u => u.id === detailUser.id);
+          const refreshed = freshUsers.find(u => u.id === detailUser.id);
           if (refreshed) setDetailUser(refreshed);
         }
       } catch (error) {
@@ -421,9 +423,9 @@ const AdminCRM: React.FC = () => {
       setChangingRole(userId);
       try {
         await updateProfile(userId, { role: newRole });
-        await fetchData();
+        const freshUsers = await fetchData();
         if (detailUser && detailUser.id === userId) {
-          const refreshed = allUsers.find(u => u.id === userId);
+          const refreshed = freshUsers.find(u => u.id === userId);
           if (refreshed) setDetailUser(refreshed);
         }
       } catch (error) {

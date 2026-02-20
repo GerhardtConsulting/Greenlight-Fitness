@@ -10,7 +10,7 @@ import LibrarySelectorV2 from './LibrarySelectorV2';
 import { useLanguage } from '../../context/LanguageContext';
 import { 
   X, Save, Plus, GripVertical, Trash2, 
-  ChevronDown, ChevronUp, Layers, Repeat, Link, Pencil
+  ChevronDown, ChevronUp, Layers, Repeat, Link, Pencil, Timer, Zap
 } from 'lucide-react';
 
 interface DraftSessionBuilderProps {
@@ -148,7 +148,7 @@ const DraftSessionBuilder: React.FC<DraftSessionBuilderProps> = ({ session, onCl
     setWorkoutData(workoutData.map(b => b.id === blockId ? { ...b, type } : b));
   };
 
-  const updateBlockMeta = (blockId: string, field: 'rounds' | 'restBetweenRounds', value: string) => {
+  const updateBlockMeta = (blockId: string, field: string, value: string | boolean) => {
     setWorkoutData(workoutData.map(b => b.id === blockId ? { ...b, [field]: value } : b));
   };
 
@@ -366,7 +366,7 @@ const DraftSessionBuilder: React.FC<DraftSessionBuilderProps> = ({ session, onCl
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 max-w-5xl mx-auto w-full safe-area-bottom" onClick={() => setOpenHeaderMenu(null)}>
+      <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 max-w-5xl mx-auto w-full safe-area-bottom" style={{ overscrollBehavior: 'contain' }} onClick={() => setOpenHeaderMenu(null)}>
         
         {workoutData.length === 0 && (
           <div className="text-center py-20 border-2 border-dashed border-zinc-800 rounded-lg">
@@ -379,6 +379,11 @@ const DraftSessionBuilder: React.FC<DraftSessionBuilderProps> = ({ session, onCl
         {workoutData.map((block, bIndex) => {
             const isCircuit = block.type === 'Circuit';
             const isSuperset = block.type === 'Superset';
+            const isAMRAP = block.type === 'AMRAP';
+            const isForTime = block.type === 'ForTime';
+            const isForQuality = block.type === 'ForQuality';
+            const isEMOM = block.type === 'EMOM';
+            const isTimedBlock = isAMRAP || isForTime || isForQuality || isEMOM;
             
             return (
                 <div key={block.id} className="relative group/block-wrapper">
@@ -398,10 +403,9 @@ const DraftSessionBuilder: React.FC<DraftSessionBuilderProps> = ({ session, onCl
                     <div 
                         className={`
                             rounded-lg overflow-hidden relative transition-all
-                            ${isCircuit 
-                                ? 'bg-zinc-900 border-2 border-orange-500/20' 
-                                : 'bg-zinc-900 border border-zinc-800'
-                            }
+                            ${isCircuit ? 'bg-zinc-900 border-2 border-orange-500/20' : ''}
+                            ${isTimedBlock ? 'bg-zinc-900 border-2 border-purple-500/20' : ''}
+                            ${!isCircuit && !isTimedBlock ? 'bg-zinc-900 border border-zinc-800' : ''}
                         `}
                         draggable
                         onDragStart={(e) => {
@@ -462,11 +466,16 @@ const DraftSessionBuilder: React.FC<DraftSessionBuilderProps> = ({ session, onCl
                                                 ${block.type === 'Normal' ? 'bg-zinc-900 border-zinc-700 text-zinc-400 hover:text-white' : ''}
                                                 ${block.type === 'Superset' ? 'bg-[#00FF00]/10 border-[#00FF00]/30 text-[#00FF00]' : ''}
                                                 ${block.type === 'Circuit' ? 'bg-orange-500/10 border-orange-500/30 text-orange-400' : ''}
+                                                ${isTimedBlock ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : ''}
                                             `}
                                         >
                                             <option value="Normal">{t('planner.type_straight')}</option>
                                             <option value="Superset">{t('planner.type_superset')}</option>
                                             <option value="Circuit">{t('planner.type_circuit')}</option>
+                                            <option value="AMRAP">AMRAP</option>
+                                            <option value="ForTime">For Time</option>
+                                            <option value="ForQuality">For Quality</option>
+                                            <option value="EMOM">EMOM</option>
                                         </select>
                                         <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-current pointer-events-none opacity-70" />
                                     </div>
@@ -486,7 +495,58 @@ const DraftSessionBuilder: React.FC<DraftSessionBuilderProps> = ({ session, onCl
                                         </div>
                                     </div>
                                 )}
+
+                                {/* AMRAP / ForTime Specific Inputs */}
+                                {(isAMRAP || isForTime) && (
+                                    <div className="flex items-center gap-2 ml-2 border-l border-purple-500/30 pl-4 animate-in fade-in slide-in-from-left-2 w-full sm:w-auto mt-2 sm:mt-0">
+                                        <div className="flex items-center gap-2">
+                                            <Timer size={14} className="text-purple-400" />
+                                            <label className="text-xs text-zinc-500 font-medium whitespace-nowrap">Time Cap</label>
+                                            <input className="w-16 bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-center text-white focus:border-purple-500 outline-none"
+                                                value={block.timeCap || ''} onChange={(e) => updateBlockMeta(block.id, 'timeCap', e.target.value)} placeholder="10 min" />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-xs text-zinc-500 font-medium whitespace-nowrap">{t('planner.rounds')}</label>
+                                            <input className="w-12 bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-center text-white focus:border-purple-500 outline-none"
+                                                value={block.rounds || ''} onChange={(e) => updateBlockMeta(block.id, 'rounds', e.target.value)} placeholder={isAMRAP ? '∞' : '3'} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* EMOM Specific Inputs */}
+                                {isEMOM && (
+                                    <div className="flex items-center gap-2 ml-2 border-l border-purple-500/30 pl-4 animate-in fade-in slide-in-from-left-2 w-full sm:w-auto mt-2 sm:mt-0">
+                                        <div className="flex items-center gap-2">
+                                            <Timer size={14} className="text-purple-400" />
+                                            <label className="text-xs text-zinc-500 font-medium whitespace-nowrap">Intervall</label>
+                                            <input className="w-16 bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-center text-white focus:border-purple-500 outline-none"
+                                                value={block.emomInterval || ''} onChange={(e) => updateBlockMeta(block.id, 'emomInterval', e.target.value)} placeholder="1 min" />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <label className="text-xs text-zinc-500 font-medium whitespace-nowrap">Gesamt</label>
+                                            <input className="w-16 bg-zinc-950 border border-zinc-700 rounded px-2 py-1 text-center text-white focus:border-purple-500 outline-none"
+                                                value={block.timeCap || ''} onChange={(e) => updateBlockMeta(block.id, 'timeCap', e.target.value)} placeholder="10 min" />
+                                        </div>
+                                        <label className="flex items-center gap-1.5 text-xs text-zinc-500 cursor-pointer">
+                                            <input type="checkbox" checked={block.emomAlternating || false}
+                                                onChange={(e) => updateBlockMeta(block.id, 'emomAlternating', e.target.checked)}
+                                                className="accent-purple-500" />
+                                            Wechselnd
+                                        </label>
+                                    </div>
+                                )}
                             </div>
+
+                            {/* Block Description */}
+                            <textarea 
+                                className="w-full bg-zinc-950 border border-zinc-800 text-zinc-300 text-sm rounded px-3 py-2 mt-2 focus:border-[#00FF00] focus:ring-1 focus:ring-[#00FF00] resize-none placeholder-zinc-600"
+                                value={block.description || ''}
+                                onChange={(e) => updateBlockMeta(block.id, 'description', e.target.value)}
+                                placeholder="Block-Beschreibung (z.B. Warm-up Anweisungen, Tempo, Hinweise...)"
+                                rows={1}
+                                onFocus={(e) => { if (!block.description) e.target.rows = 2; }}
+                                onBlur={(e) => { if (!block.description) e.target.rows = 1; }}
+                            />
 
                             <div className="flex items-center gap-2 w-full sm:w-auto justify-end mt-2 sm:mt-0">
                                 <button onClick={() => openExerciseSelector(block.id)} 

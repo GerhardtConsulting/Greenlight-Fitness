@@ -153,6 +153,7 @@ const Planner: React.FC = () => {
       fetchPlans();
     } catch (error) {
       console.error("Error creating plan:", error);
+      alert("Fehler beim Erstellen des Plans.");
     }
   };
 
@@ -171,6 +172,7 @@ const Planner: React.FC = () => {
       setDeleteConfirm({ isOpen: false, planId: null });
     } catch (error) {
       console.error("Error deleting plan:", error);
+      alert("Fehler beim Löschen des Plans.");
     }
   };
 

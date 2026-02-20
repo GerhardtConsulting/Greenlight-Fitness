@@ -27,13 +27,21 @@ interface ExerciseHistory {
 const BLOCK_TYPE_ICONS: Record<BlockType, React.ReactNode> = {
   'Normal': <Layers size={14} />,
   'Superset': <Link size={14} />,
-  'Circuit': <Repeat size={14} />
+  'Circuit': <Repeat size={14} />,
+  'AMRAP': <Timer size={14} />,
+  'ForTime': <Timer size={14} />,
+  'ForQuality': <Zap size={14} />,
+  'EMOM': <Timer size={14} />
 };
 
 const BLOCK_TYPE_LABELS: Record<BlockType, string> = {
   'Normal': 'Normal',
   'Superset': 'Supersatz',
-  'Circuit': 'Zirkel'
+  'Circuit': 'Zirkel',
+  'AMRAP': 'AMRAP',
+  'ForTime': 'For Time',
+  'ForQuality': 'For Quality',
+  'EMOM': 'EMOM'
 };
 
 const DAYS_DE = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];

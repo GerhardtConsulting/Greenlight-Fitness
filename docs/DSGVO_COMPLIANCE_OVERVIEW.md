@@ -24,7 +24,7 @@ Stand: Februar 2026
 
 Hier eine einfache Übersicht über alle Compliance-Bausteine, die in die App integriert sind:
 
-| Baustein | Was ist das? | Wo in der App? |
+| Baustein | Was is t das? | Wo in der App? |
 |----------|-------------|----------------|
 | **Datenschutzerklärung** | Erklärt Nutzern, welche Daten gesammelt werden und warum | `/legal/privacy` — 17 Abschnitte, 2.0 |
 | **AGB (Allgemeine Geschäftsbedingungen)** | Regelt die Nutzungsbedingungen der Plattform | `/legal/terms` — 21 Paragraphen, 2.0 |

@@ -184,9 +184,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Simple auth check - can be a query param or header
+  // Auth check - requires env-based secret (not hardcoded)
   const authKey = req.query.key || req.headers['x-deploy-key'];
-  if (authKey !== 'greenlight-deploy-2024') {
+  const deploySecret = process.env.DEPLOY_TABLES_SECRET;
+  if (!deploySecret || authKey !== deploySecret) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 

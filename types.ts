@@ -256,14 +256,18 @@ export interface WorkoutExercise {
   sets: WorkoutSet[];
 }
 
-export type BlockType = 'Normal' | 'Superset' | 'Circuit';
+export type BlockType = 'Normal' | 'Superset' | 'Circuit' | 'AMRAP' | 'ForTime' | 'ForQuality' | 'EMOM';
 
 export interface WorkoutBlock {
   id: string; // Internal UUID
   name: string; // "A", "B", "C" or Custom
   type: BlockType; // Explicitly defined type
+  description?: string; // Block-level description (e.g. warm-up instructions)
   rounds?: string; // Specific for Circuits
   restBetweenRounds?: string; // Specific for Circuits
+  timeCap?: string; // AMRAP/ForTime: time limit in minutes
+  emomInterval?: string; // EMOM: interval in minutes (1, 2, 3...)
+  emomAlternating?: boolean; // EMOM: alternating stations
   exercises: WorkoutExercise[];
   isCompleted?: boolean; // Runtime: block completion state
 }

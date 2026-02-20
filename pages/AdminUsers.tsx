@@ -148,6 +148,7 @@ const AdminUsers: React.FC = () => {
 
       alert(`Coaching für ${selectedUser.email} freigeschaltet!`);
       setShowGrantModal(false);
+      await fetchUsers();
     } catch (error) {
       console.error("Error granting access:", error);
       alert("Fehler beim Freischalten");
@@ -179,6 +180,7 @@ const AdminUsers: React.FC = () => {
       setInviteMessage('');
       setInviteAutoApprove(false);
       setInviteBonusProduct('');
+      await fetchUsers();
     } catch (error) {
       console.error("Error sending invitation:", error);
       alert("Fehler beim Erstellen der Einladung");

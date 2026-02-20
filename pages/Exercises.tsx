@@ -150,8 +150,8 @@ const Exercises: React.FC = () => {
     setIsEditorOpen(true);
   };
 
-  const handleEditorSave = () => {
-    fetchExercises(); // Refresh list after save
+  const handleEditorSave = async () => {
+    await fetchExercises(); // Refresh list after save
   };
 
   const toggleArchiveStatus = async (ex: Exercise, shouldArchive: boolean) => {

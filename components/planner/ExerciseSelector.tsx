@@ -4,6 +4,7 @@ import { Exercise } from '../../types';
 import Input from '../Input';
 import Button from '../Button';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
 import { Search, X, Plus, ChevronRight, Save, Filter } from 'lucide-react';
 
 interface ExerciseSelectorProps {
@@ -21,6 +22,7 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 
 const ExerciseSelector: React.FC<ExerciseSelectorProps> = ({ isOpen, onClose, onSelect }) => {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -81,6 +83,7 @@ const ExerciseSelector: React.FC<ExerciseSelectorProps> = ({ isOpen, onClose, on
             category: newExercise.category,
             difficulty: newExercise.difficulty,
             description: 'Created from Session Builder',
+            author_id: user?.id,
             is_archived: false,
         });
         
@@ -272,12 +275,20 @@ const ExerciseSelector: React.FC<ExerciseSelectorProps> = ({ isOpen, onClose, on
                         placeholder="e.g. Barbell Squat"
                         autoFocus
                     />
-                    <Input 
-                        label={t('editor.category')} 
-                        value={newExercise.category}
-                        onChange={(e) => setNewExercise({...newExercise, category: e.target.value})}
-                        placeholder="e.g. Legs"
-                    />
+                    <div className="flex flex-col gap-1">
+                        <label className="text-sm font-medium text-zinc-400">{t('editor.category')}</label>
+                        <select
+                            value={newExercise.category}
+                            onChange={(e) => setNewExercise({...newExercise, category: e.target.value})}
+                            required
+                            className="bg-zinc-900 border border-zinc-700 text-white rounded px-3 py-2 focus:outline-none focus:border-[#00FF00] focus:ring-1 focus:ring-[#00FF00]"
+                        >
+                            <option value="" disabled>Kategorie wählen...</option>
+                            {['Chest', 'Back', 'Shoulders', 'Legs', 'Arms', 'Core', 'Cardio', 'Olympic Lifts', 'Mobility', 'Full Body', 'Warm-up', 'Cooldown'].map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                        </select>
+                    </div>
                     <div className="flex flex-col gap-1">
                         <label className="text-sm font-medium text-zinc-400">{t('editor.difficulty')}</label>
                         <select

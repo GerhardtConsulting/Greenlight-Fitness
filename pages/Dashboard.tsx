@@ -486,6 +486,7 @@ const Dashboard: React.FC = () => {
           await fetchCoachDashboardData();
       } catch (error) {
           console.error("Error completing appointment:", error);
+          alert("Fehler beim Abschließen des Termins.");
       }
   };
 
@@ -496,6 +497,7 @@ const Dashboard: React.FC = () => {
           await fetchCoachDashboardData();
       } catch (error) {
           console.error("Error resolving attention:", error);
+          alert("Fehler beim Lösen des Tickets.");
       }
   };
 
